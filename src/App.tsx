@@ -202,6 +202,13 @@ export default function App() {
     [toast]
   );
 
+  // In-memory replace (page reorder/rotate/delete/merge) — unlike saveDoc
+  // this never touches disk; it only updates the working bytes so the
+  // viewer reloads with them. The tab is left/marked dirty by the caller.
+  const replaceDoc = useCallback((id: number, bytes: Uint8Array) => {
+    setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes } : x)));
+  }, []);
+
   const doCheckUpdate = async () => {
     setChecking(true);
     try {
@@ -315,6 +322,7 @@ export default function App() {
           name={active.name}
           onDirtyChange={(dirty) => setDirty(active.id, dirty)}
           onSave={(bytes) => saveDoc(active.id, bytes)}
+          onReplace={(bytes) => replaceDoc(active.id, bytes)}
           onError={(msg) => toast(msg, true)}
         />
       )}

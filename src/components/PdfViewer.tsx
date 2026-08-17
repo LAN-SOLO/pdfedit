@@ -9,20 +9,26 @@ import {
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { t } from '../i18n';
+import PagesPanel from './PagesPanel';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const { AnnotationEditorType, AnnotationMode } = pdfjsLib;
 
-type Tool = 'select' | 'highlight' | 'freetext' | 'ink' | 'stamp' | 'signature';
+// Stamp and Signature are deliberately left out: pdf.js's built-in editors
+// for both expect the full Firefox-viewer chrome (an image file picker
+// wired to a toolbar button, a draw/type/upload signature dialog) that we
+// don't have here. Selecting either tool "works" in the sense that it
+// doesn't crash, but clicking the page to place one silently does nothing —
+// worse than not offering it. They'll come back once we build a proper
+// in-app dialog for each (tracked in PDFEDIT_PLAN.md).
+type Tool = 'select' | 'highlight' | 'freetext' | 'ink';
 
 const TOOL_MODE: Record<Tool, number> = {
   select: AnnotationEditorType.NONE,
   highlight: AnnotationEditorType.HIGHLIGHT,
   freetext: AnnotationEditorType.FREETEXT,
   ink: AnnotationEditorType.INK,
-  stamp: AnnotationEditorType.STAMP,
-  signature: AnnotationEditorType.SIGNATURE,
 };
 
 interface PdfViewerProps {
@@ -30,6 +36,10 @@ interface PdfViewerProps {
   name: string;
   onDirtyChange: (dirty: boolean) => void;
   onSave: (bytes: Uint8Array) => void;
+  /** Replace the working document in place (e.g. after reordering/rotating/
+   *  merging pages in the Pages panel) — an in-memory change, same as a
+   *  drawn stroke: it marks the tab dirty but does not touch disk. */
+  onReplace: (bytes: Uint8Array) => void;
   onError: (msg: string) => void;
 }
 
@@ -55,7 +65,7 @@ export interface PdfViewerHandle {
  *  ONE of these at a time — the parent unmounts inactive tabs and uses
  *  `checkpoint()` beforehand to keep their in-progress edits. */
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { data, name, onDirtyChange, onSave, onError },
+  { data, name, onDirtyChange, onSave, onReplace, onError },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -75,6 +85,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [findQuery, setFindQuery] = useState('');
   const [findResult, setFindResult] = useState<{ current: number; total: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showPages, setShowPages] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -176,6 +187,12 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       container?.removeEventListener('pointerdown', onPointerDown, true);
       pdfViewer.cleanup();
       loadingTask.destroy();
+      // pdfViewer.cleanup() only cancels unfinished renders — it does not
+      // detach finished pages from the DOM. Without this, replacing the
+      // document in an already-mounted tab (Pages panel apply, or a
+      // checkpoint reload) would leave the old pages behind for the next
+      // PDFViewer instance to render alongside the new ones.
+      if (viewerElRef.current) viewerElRef.current.innerHTML = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
@@ -323,6 +340,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         </button>
         <button onClick={fitWidth}>{t.fitWidth}</button>
         <button onClick={fitPage}>{t.fitPage}</button>
+        <button onClick={() => setShowPages(true)} disabled={!ready}>
+          {t.pagesButton}
+        </button>
         <button className="primary" onClick={doSave} disabled={saving || !ready}>
           {saving ? t.saving : t.save}
         </button>
@@ -369,6 +389,19 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         {error && <div className="load-error">{`${t.loadError}: ${error}`}</div>}
         {!ready && !error && <div className="faint loading">{t.loading}</div>}
       </div>
+
+      {showPages && (
+        <PagesPanel
+          data={data}
+          onApply={(bytes) => {
+            dirtyRef.current = true;
+            onDirtyChange(true);
+            onReplace(bytes);
+          }}
+          onClose={() => setShowPages(false)}
+          onError={onError}
+        />
+      )}
     </div>
   );
 });

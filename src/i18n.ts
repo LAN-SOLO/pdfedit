@@ -3,10 +3,12 @@ const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit öffnet mehrere PDFs in Tabs, zeigt sie mit Zoom und flüssigem ' +
-    'Blättern an — und erstellt neue PDFs in den klassischen Formaten. ' +
-    'Anmerkungen, Formulare und Bearbeitung ziehen als nächste Updates ein, ' +
-    'jeweils mit Changelog vor der Installation.',
+    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert und ' +
+    'durchsucht sie — und organisiert Seiten: umsortieren, drehen, ' +
+    'löschen, einfügen, zusammenführen, als Auszug exportieren. ' +
+    'Formulare ausfüllen, Signieren und die vollständige Bearbeitung ' +
+    'ziehen als nächste Updates ein, jeweils mit Changelog vor der ' +
+    'Installation.',
   openPdf: 'PDF öffnen',
   newPdf: 'Neues PDF',
   dropHint: 'Oder eine PDF-Datei einfach ins Fenster ziehen.',
@@ -29,9 +31,17 @@ const de = {
     highlight: 'Markieren',
     freetext: 'Text',
     ink: 'Zeichnen',
-    stamp: 'Bild',
-    signature: 'Unterschrift',
   },
+  pagesButton: 'Seiten',
+  pagesTitle: 'Seiten organisieren',
+  pagesInsertBlank: 'Leere Seite',
+  pagesMerge: 'PDF anhängen',
+  pagesExportSelected: (n: number) =>
+    n === 0 ? 'Auswahl exportieren' : n === 1 ? '1 Seite exportieren' : `${n} Seiten exportieren`,
+  pagesExportName: 'Auszug.pdf',
+  pagesApply: 'Übernehmen',
+  pagesApplying: 'Wende Änderungen an …',
+  pagesExporting: 'Exportiere …',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -66,10 +76,11 @@ const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit opens multiple PDFs in tabs, displays them with zoom and ' +
-    'smooth scrolling — and creates new PDFs in the classic page formats. ' +
-    'Annotations, forms and editing arrive as the next updates, each with ' +
-    'the changelog shown before installing.',
+    'pdfedit opens multiple PDFs in tabs, highlights, annotates and ' +
+    'searches them — and organizes pages: reorder, rotate, delete, ' +
+    'insert, merge, export a selection. Filling forms, signing, and ' +
+    'full editing arrive as the next updates, each with the changelog ' +
+    'shown before installing.',
   openPdf: 'Open PDF',
   newPdf: 'New PDF',
   dropHint: 'Or just drop a PDF file into the window.',
@@ -92,9 +103,17 @@ const en: typeof de = {
     highlight: 'Highlight',
     freetext: 'Text',
     ink: 'Draw',
-    stamp: 'Image',
-    signature: 'Signature',
   },
+  pagesButton: 'Pages',
+  pagesTitle: 'Organize pages',
+  pagesInsertBlank: 'Blank page',
+  pagesMerge: 'Append PDF',
+  pagesExportSelected: (n: number) =>
+    n === 0 ? 'Export selection' : n === 1 ? 'Export 1 page' : `Export ${n} pages`,
+  pagesExportName: 'Extract.pdf',
+  pagesApply: 'Apply',
+  pagesApplying: 'Applying changes …',
+  pagesExporting: 'Exporting …',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',

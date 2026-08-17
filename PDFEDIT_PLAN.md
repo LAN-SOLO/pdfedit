@@ -106,6 +106,31 @@ pdfedit/
   stillschweigend verloren. Zusätzlich: „dirty" muss schon beim ersten
   Pointerdown in einem Zeichenwerkzeug gesetzt werden, nicht erst nach dem
   Commit — sonst bricht die Dirty-Prüfung den Commit-Versuch selbst ab.
+  **Bild-Stempel und Unterschrift bewusst (noch) nicht im Werkzeugkasten:**
+  pdf.js' eingebaute Editoren dafür erwarten die volle Firefox-Viewer-Chrome
+  (Datei-Picker-Anbindung, Zeichnen/Tippen/Hochladen-Dialog) — ohne die
+  reagieren die Werkzeuge zwar nicht mit einem Absturz, aber auch mit
+  nichts. Kommt als eigener, selbst gebauter Dialog zurück (mit dem
+  Formulare/Signieren-Meilenstein).
+- **Phase 2a — Seiten organisieren (v0.5.0):** Eigenes Miniaturansichten-Panel
+  (`PagesPanel.tsx`, da pdf.js' Standalone-`PDFViewer` keinen
+  Thumbnail-Viewer exportiert — Seiten werden selbst per `page.render()` in
+  kleine Canvases gerendert). Umsortieren (Auf/Ab statt Drag&Drop — robuster
+  und leichter testbar), Drehen (90°-Schritte), Löschen, leere Seite
+  einfügen, weitere PDF anhängen (Merge), Seitenauswahl als neue Datei
+  exportieren. Alles über pdf-lib (`copyPages`, `addPage`, `setRotation`) —
+  „Übernehmen" ersetzt das Arbeitsdokument im Speicher (macht dirty, kein
+  Diskzugriff), der Export-Button schreibt sofort eine neue Datei.
+  **Zwei weitere Lektionen:** (1) `PDFViewer.cleanup()` räumt nur
+  unfertige Renderings weg, nicht die DOM — beim Dokumentaustausch im
+  selben Tab (Übernehmen/Checkpoint) muss der Viewer-Container manuell
+  geleert werden, sonst rendern alte und neue Seiten übereinander. (2) React
+  18 StrictMode führt State-Updater-Funktionen im Dev-Modus absichtlich
+  doppelt aus, um Nebenwirkungen aufzudecken — ein Nebeneffekt (Seiten
+  laden) innerhalb eines `setSources`-Updaters führte zu doppelt
+  angehängten Seiten beim Merge (nur im Dev-Server sichtbar, Produktions-
+  Build ist nicht betroffen, aber der Code war trotzdem unsauber und wurde
+  korrigiert).
 - **Phase 1 — Anmerken (Free-Kern):** ISO-32000-Annotations komplett,
   Anmerkungsliste, Formulare ausfüllen, inkrementelles Speichern.
 - **Phase 2 — Organisieren & Signieren:** Seiten zusammenführen/teilen/
