@@ -2281,8 +2281,9 @@ dependencies = [
 
 [[package]]
 name = "pdfedit-app"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "tauri",

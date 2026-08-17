@@ -86,12 +86,11 @@ function PageView({ doc, pageNumber, scale }: PageViewProps) {
 interface PdfViewerProps {
   data: Uint8Array;
   name: string;
-  onClose: () => void;
 }
 
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 1, 1.2, 1.5, 2, 2.5, 3];
 
-export default function PdfViewer({ data, name, onClose }: PdfViewerProps) {
+export default function PdfViewer({ data, name }: PdfViewerProps) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [error, setError] = useState('');
   const [scale, setScale] = useState(1.2);
@@ -146,7 +145,6 @@ export default function PdfViewer({ data, name, onClose }: PdfViewerProps) {
           +
         </button>
         <button onClick={fitWidth}>{t.fitWidth}</button>
-        <button onClick={onClose}>{t.close}</button>
       </div>
       <div className="pages" ref={scrollRef}>
         {error && <div className="load-error">{`${t.loadError}: ${error}`}</div>}

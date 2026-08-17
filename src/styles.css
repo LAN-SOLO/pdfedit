@@ -320,3 +320,86 @@ button.big {
   font-family: var(--mono);
   font-size: 13px;
 }
+
+/* ---------- tabs & new-PDF dialog ---------- */
+
+.tabbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 0;
+  background: var(--bg);
+}
+
+.shell:not(.wide) .tabbar {
+  display: none;
+}
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 8px 7px 14px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg);
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab.active {
+  background: var(--panel);
+  color: var(--text);
+}
+
+.tabname {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tabclose {
+  font-size: 14px;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.tabaction {
+  padding: 6px 12px;
+  font-size: 12.5px;
+  flex-shrink: 0;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.choices.center {
+  justify-content: center;
+}
+
+.numinput {
+  font: inherit;
+  font-family: var(--mono);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 90px;
+}

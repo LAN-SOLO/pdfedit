@@ -4,9 +4,11 @@ import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { api, isTauri, UpdateInfo } from './api';
 import { t } from './i18n';
 import UpdateModal from './components/UpdateModal';
+import NewPdfModal, { CreatedPdf } from './components/NewPdfModal';
 import PdfViewer from './components/PdfViewer';
 
 interface OpenDoc {
+  id: number;
   name: string;
   data: Uint8Array;
 }
@@ -16,9 +18,12 @@ export default function App() {
   const [update, setUpdate] = useState<UpdateInfo | null | 'unchecked'>('unchecked');
   const [checking, setChecking] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [showNewModal, setShowNewModal] = useState(false);
   const [toastMsg, setToastMsg] = useState<{ msg: string; err: boolean } | null>(null);
-  const [doc, setDoc] = useState<OpenDoc | null>(null);
+  const [docs, setDocs] = useState<OpenDoc[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const toastTimer = useRef<number>(0);
+  const nextId = useRef(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toast = useCallback((msg: string, isError = false) => {
@@ -42,17 +47,39 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  const addDoc = useCallback((name: string, data: Uint8Array) => {
+    const id = nextId.current++;
+    setDocs((d) => [...d, { id, name, data }]);
+    setActiveId(id);
+  }, []);
+
+  const closeTab = useCallback(
+    (id: number) => {
+      setDocs((d) => {
+        const idx = d.findIndex((doc) => doc.id === id);
+        const rest = d.filter((doc) => doc.id !== id);
+        setActiveId((cur) => {
+          if (cur !== id) return cur;
+          const neighbor = rest[Math.min(idx, rest.length - 1)];
+          return neighbor ? neighbor.id : null;
+        });
+        return rest;
+      });
+    },
+    []
+  );
+
   const openPath = useCallback(
     async (path: string) => {
       try {
         const buf = await api.readPdf(path);
         const name = path.split('/').pop()?.split('\\').pop() ?? 'PDF';
-        setDoc({ name, data: new Uint8Array(buf) });
+        addDoc(name, new Uint8Array(buf));
       } catch (err) {
         toast(`${t.loadError}: ${String(err)}`, true);
       }
     },
-    [toast]
+    [addDoc, toast]
   );
 
   // native drag & drop (Tauri delivers file paths, not File objects)
@@ -60,8 +87,9 @@ export default function App() {
     if (!isTauri) return;
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
       if (event.payload.type === 'drop') {
-        const pdf = event.payload.paths.find((p) => p.toLowerCase().endsWith('.pdf'));
-        if (pdf) openPath(pdf);
+        for (const p of event.payload.paths) {
+          if (p.toLowerCase().endsWith('.pdf')) openPath(p);
+        }
       }
     });
     return () => {
@@ -83,10 +111,21 @@ export default function App() {
   }, [openPath, toast]);
 
   // plain-browser dev fallback (vite dev without the Tauri shell)
-  const onBrowserFile = useCallback(async (file: File | undefined) => {
-    if (!file) return;
-    setDoc({ name: file.name, data: new Uint8Array(await file.arrayBuffer()) });
-  }, []);
+  const onBrowserFile = useCallback(
+    async (file: File | undefined) => {
+      if (!file) return;
+      addDoc(file.name, new Uint8Array(await file.arrayBuffer()));
+    },
+    [addDoc]
+  );
+
+  const onCreated = useCallback(
+    (pdf: CreatedPdf) => {
+      setShowNewModal(false);
+      addDoc(pdf.name, pdf.data);
+    },
+    [addDoc]
+  );
 
   const doCheckUpdate = async () => {
     setChecking(true);
@@ -101,20 +140,55 @@ export default function App() {
     }
   };
 
+  const active = docs.find((d) => d.id === activeId) ?? null;
+
   return (
     <div
-      className={doc ? 'shell wide' : 'shell'}
+      className={active ? 'shell wide' : 'shell'}
       onDragOver={isTauri ? undefined : (e) => e.preventDefault()}
       onDrop={
         isTauri
           ? undefined
           : (e) => {
               e.preventDefault();
-              onBrowserFile(e.dataTransfer.files[0]);
+              for (const f of Array.from(e.dataTransfer.files)) onBrowserFile(f);
             }
       }
     >
-      {!doc && (
+      {docs.length > 0 && (
+        <div className="tabbar">
+          <div className="tabs">
+            {docs.map((d) => (
+              <div
+                key={d.id}
+                className={d.id === activeId ? 'tab active' : 'tab'}
+                onClick={() => setActiveId(d.id)}
+                title={d.name}
+              >
+                <span className="tabname">{d.name}</span>
+                <button
+                  className="ghost tabclose"
+                  aria-label={t.closeTab}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(d.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <button className="tabaction" onClick={openPdf}>
+            {t.openPdf}
+          </button>
+          <button className="tabaction" onClick={() => setShowNewModal(true)}>
+            {t.newPdf}
+          </button>
+        </div>
+      )}
+
+      {!active && (
         <>
           <header>
             <h1>
@@ -126,9 +200,14 @@ export default function App() {
           </header>
 
           <div className="open-area">
-            <button className="primary big" onClick={openPdf}>
-              {t.openPdf}
-            </button>
+            <div className="choices center">
+              <button className="primary big" onClick={openPdf}>
+                {t.openPdf}
+              </button>
+              <button className="big" onClick={() => setShowNewModal(true)}>
+                {t.newPdf}
+              </button>
+            </div>
             <div className="faint drop-hint">{t.dropHint}</div>
           </div>
 
@@ -152,7 +231,7 @@ export default function App() {
         </>
       )}
 
-      {doc && <PdfViewer data={doc.data} name={doc.name} onClose={() => setDoc(null)} />}
+      {active && <PdfViewer key={active.id} data={active.data} name={active.name} />}
 
       {!isTauri && (
         <input
@@ -160,7 +239,18 @@ export default function App() {
           type="file"
           accept="application/pdf"
           style={{ display: 'none' }}
-          onChange={(e) => onBrowserFile(e.target.files?.[0])}
+          onChange={(e) => {
+            onBrowserFile(e.target.files?.[0]);
+            e.target.value = '';
+          }}
+        />
+      )}
+
+      {showNewModal && (
+        <NewPdfModal
+          onCreated={onCreated}
+          onError={(msg) => toast(msg, true)}
+          onClose={() => setShowNewModal(false)}
         />
       )}
 

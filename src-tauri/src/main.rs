@@ -27,6 +27,32 @@ async fn read_pdf(path: String) -> Result<tauri::ipc::Response, String> {
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// Native "save file" dialog for a new PDF. Returns the chosen path
+/// (None if the user cancels).
+#[tauri::command]
+async fn pick_save_pdf(app: tauri::AppHandle, suggested: String) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("PDF", &["pdf"])
+        .set_file_name(&suggested)
+        .blocking_save_file();
+    Ok(picked
+        .and_then(|f| f.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string()))
+}
+
+/// Write a freshly created PDF to disk (bytes arrive base64-encoded —
+/// blank documents are tiny, the encoding overhead is irrelevant).
+#[tauri::command]
+async fn write_pdf(path: String, data_b64: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(data_b64)
+        .map_err(|e| e.to_string())?;
+    std::fs::write(&path, bytes).map_err(|e| e.to_string())
+}
+
 #[derive(Serialize)]
 pub struct UpdateInfoDto {
     pub version: String,
@@ -77,6 +103,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             pick_pdf,
             read_pdf,
+            pick_save_pdf,
+            write_pdf,
             check_update,
             install_update
         ])
