@@ -89,7 +89,23 @@ pdfedit/
   (v0.2.0: öffnen per Dialog/Drag & Drop, lazy Rendering, Zoom, Fit-Width —
   pragmatisch über pdf.js im Webview; die Rust-Engine mit pdfium übernimmt
   das Rendering, sobald die Bearbeitungs-Phasen sie ohnehin brauchen).
-  Noch offen: Tabs, Suche.
+  Noch offen: Tabs ✅ (v0.3.0), Suche ✅ (v0.4.0).
+- **Phase 1 — Anmerken (v0.4.0):** ISO-32000-Annotationseditor über pdf.js'
+  eigenen `PDFViewer`/`AnnotationEditorUIManager` (dieselbe Engine wie
+  Firefox' PDF-Viewer): Markieren (Highlight), Freitext/Notiz, Zeichnen
+  (Ink), Bild-Stempel, Unterschrift; Suche im Dokument über
+  `PDFFindController`. Speichern über `pdfDocument.saveDocument()` bäckt
+  alle Änderungen in echte, Acrobat-lesbare Annotationsobjekte (verifiziert:
+  `/Subtype /Highlight` mit QuadPoints, Farbe, Appearance-Stream). AcroForm-
+  Formularfelder rendern bereits interaktiv (pdf.js' `ENABLE_FORMS`), volles
+  Ausfüllen/Speichern folgt als nächster Schritt.
+  **Wichtige Lektion:** Ein gezeichneter, aber noch nicht committeter Strich
+  hängt in einer „laufenden Editier-Sitzung" — Tab-Wechsel/Speichern muss
+  den Editor-Modus zurücksetzen UND auf das (asynchrone!)
+  `annotationeditormodechanged`-Event warten, sonst geht der Strich
+  stillschweigend verloren. Zusätzlich: „dirty" muss schon beim ersten
+  Pointerdown in einem Zeichenwerkzeug gesetzt werden, nicht erst nach dem
+  Commit — sonst bricht die Dirty-Prüfung den Commit-Versuch selbst ab.
 - **Phase 1 — Anmerken (Free-Kern):** ISO-32000-Annotations komplett,
   Anmerkungsliste, Formulare ausfüllen, inkrementelles Speichern.
 - **Phase 2 — Organisieren & Signieren:** Seiten zusammenführen/teilen/

@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api, isTauri, UpdateInfo } from './api';
+import { bytesToBase64, downloadBytes } from './bytes';
 import { t } from './i18n';
 import UpdateModal from './components/UpdateModal';
 import NewPdfModal, { CreatedPdf } from './components/NewPdfModal';
-import PdfViewer from './components/PdfViewer';
+import PdfViewer, { PdfViewerHandle } from './components/PdfViewer';
 
 interface OpenDoc {
   id: number;
   name: string;
   data: Uint8Array;
+  path: string | null;
+  dirty: boolean;
 }
 
 export default function App() {
@@ -25,6 +29,11 @@ export default function App() {
   const toastTimer = useRef<number>(0);
   const nextId = useRef(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docsRef = useRef<OpenDoc[]>([]);
+  docsRef.current = docs;
+  // Only ONE PdfViewer is ever mounted at a time (see PdfViewer.tsx docstring
+  // for why) — this ref always points at whichever one that currently is.
+  const viewerRef = useRef<PdfViewerHandle>(null);
 
   const toast = useCallback((msg: string, isError = false) => {
     setToastMsg({ msg, err: isError });
@@ -36,8 +45,6 @@ export default function App() {
     getVersion()
       .then(setVersion)
       .catch(() => {});
-    // silent update check on app start; when an update exists the changelog
-    // dialog opens first — installing always needs an explicit confirmation
     api
       .checkUpdate()
       .then((u) => {
@@ -47,26 +54,75 @@ export default function App() {
       .catch(() => {});
   }, []);
 
-  const addDoc = useCallback((name: string, data: Uint8Array) => {
-    const id = nextId.current++;
-    setDocs((d) => [...d, { id, name, data }]);
-    setActiveId(id);
+  // guard against quitting with unsaved edits anywhere
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    getCurrentWindow()
+      .onCloseRequested(async (event) => {
+        if (docsRef.current.some((d) => d.dirty)) {
+          if (!window.confirm(t.unsavedQuitConfirm)) event.preventDefault();
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      });
+    return () => unlisten?.();
   }, []);
+
+  // Switching away from the active tab unmounts its PdfViewer — checkpoint
+  // its edits into memory first so they aren't lost (this does NOT write to
+  // disk and does NOT clear the dirty flag; only an explicit Save does
+  // that). EVERY path that can change `activeId` while a doc is open must
+  // go through this first — that includes opening/creating a new PDF, not
+  // just clicking another tab.
+  const checkpointActive = useCallback(async () => {
+    if (activeId === null) return;
+    const bytes = await viewerRef.current?.checkpoint();
+    if (bytes) {
+      const outgoingId = activeId;
+      setDocs((d) => d.map((x) => (x.id === outgoingId ? { ...x, data: bytes } : x)));
+    }
+  }, [activeId]);
+
+  const addDoc = useCallback(
+    async (name: string, data: Uint8Array, path: string | null) => {
+      await checkpointActive();
+      const id = nextId.current++;
+      setDocs((d) => [...d, { id, name, data, path, dirty: false }]);
+      setActiveId(id);
+    },
+    [checkpointActive]
+  );
+
+  const setDirty = useCallback((id: number, dirty: boolean) => {
+    setDocs((d) => d.map((doc) => (doc.id === id ? { ...doc, dirty } : doc)));
+  }, []);
+
+  const switchTab = useCallback(
+    async (id: number) => {
+      if (id === activeId) return;
+      await checkpointActive();
+      setActiveId(id);
+    },
+    [activeId, checkpointActive]
+  );
 
   const closeTab = useCallback(
     (id: number) => {
+      const doc = docsRef.current.find((d) => d.id === id);
+      if (doc?.dirty && !window.confirm(t.unsavedCloseConfirm)) return;
       setDocs((d) => {
-        const idx = d.findIndex((doc) => doc.id === id);
-        const rest = d.filter((doc) => doc.id !== id);
-        setActiveId((cur) => {
-          if (cur !== id) return cur;
+        const idx = d.findIndex((x) => x.id === id);
+        const rest = d.filter((x) => x.id !== id);
+        if (id === activeId) {
           const neighbor = rest[Math.min(idx, rest.length - 1)];
-          return neighbor ? neighbor.id : null;
-        });
+          setActiveId(neighbor ? neighbor.id : null);
+        }
         return rest;
       });
     },
-    []
+    [activeId]
   );
 
   const openPath = useCallback(
@@ -74,7 +130,7 @@ export default function App() {
       try {
         const buf = await api.readPdf(path);
         const name = path.split('/').pop()?.split('\\').pop() ?? 'PDF';
-        addDoc(name, new Uint8Array(buf));
+        await addDoc(name, new Uint8Array(buf), path);
       } catch (err) {
         toast(`${t.loadError}: ${String(err)}`, true);
       }
@@ -85,10 +141,10 @@ export default function App() {
   // native drag & drop (Tauri delivers file paths, not File objects)
   useEffect(() => {
     if (!isTauri) return;
-    const unlisten = getCurrentWebview().onDragDropEvent((event) => {
+    const unlisten = getCurrentWebview().onDragDropEvent(async (event) => {
       if (event.payload.type === 'drop') {
         for (const p of event.payload.paths) {
-          if (p.toLowerCase().endsWith('.pdf')) openPath(p);
+          if (p.toLowerCase().endsWith('.pdf')) await openPath(p);
         }
       }
     });
@@ -114,17 +170,36 @@ export default function App() {
   const onBrowserFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
-      addDoc(file.name, new Uint8Array(await file.arrayBuffer()));
+      await addDoc(file.name, new Uint8Array(await file.arrayBuffer()), null);
     },
     [addDoc]
   );
 
   const onCreated = useCallback(
-    (pdf: CreatedPdf) => {
+    async (pdf: CreatedPdf) => {
       setShowNewModal(false);
-      addDoc(pdf.name, pdf.data);
+      await addDoc(pdf.name, pdf.data, pdf.path);
     },
     [addDoc]
+  );
+
+  const saveDoc = useCallback(
+    async (id: number, bytes: Uint8Array) => {
+      const doc = docsRef.current.find((d) => d.id === id);
+      if (!doc) return;
+      try {
+        if (isTauri && doc.path) {
+          await api.writePdf(doc.path, bytesToBase64(bytes));
+        } else {
+          downloadBytes(doc.name, bytes);
+        }
+        setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes, dirty: false } : x)));
+        toast(t.saved);
+      } catch (err) {
+        toast(`${t.saveError}: ${String(err)}`, true);
+      }
+    },
+    [toast]
   );
 
   const doCheckUpdate = async () => {
@@ -144,7 +219,7 @@ export default function App() {
 
   return (
     <div
-      className={active ? 'shell wide' : 'shell'}
+      className={docs.length > 0 ? 'shell wide' : 'shell'}
       onDragOver={isTauri ? undefined : (e) => e.preventDefault()}
       onDrop={
         isTauri
@@ -162,9 +237,10 @@ export default function App() {
               <div
                 key={d.id}
                 className={d.id === activeId ? 'tab active' : 'tab'}
-                onClick={() => setActiveId(d.id)}
+                onClick={() => switchTab(d.id)}
                 title={d.name}
               >
+                {d.dirty && <span className="dirtydot" aria-hidden="true" />}
                 <span className="tabname">{d.name}</span>
                 <button
                   className="ghost tabclose"
@@ -231,7 +307,17 @@ export default function App() {
         </>
       )}
 
-      {active && <PdfViewer key={active.id} data={active.data} name={active.name} />}
+      {active && (
+        <PdfViewer
+          key={active.id}
+          ref={viewerRef}
+          data={active.data}
+          name={active.name}
+          onDirtyChange={(dirty) => setDirty(active.id, dirty)}
+          onSave={(bytes) => saveDoc(active.id, bytes)}
+          onError={(msg) => toast(msg, true)}
+        />
+      )}
 
       {!isTauri && (
         <input
