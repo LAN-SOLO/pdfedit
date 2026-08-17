@@ -1,11 +1,18 @@
 /** Minimal UI strings (de/en) for the app shell — grows with the real UI. */
 const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
-  statusTitle: 'Beta-Grundgerüst',
+  statusTitle: 'Beta',
   statusText:
-    'Das ist das App-Grundgerüst von pdfedit: Renderer und PDF-Engine ' +
-    'entstehen gerade — Ansicht, Anmerkungen und Bearbeitung ziehen als ' +
-    'Updates ein. Updates kommen ab jetzt signiert direkt in die App.',
+    'pdfedit kann jetzt PDFs öffnen und anzeigen — mit Zoom und flüssigem ' +
+    'Blättern. Anmerkungen, Formulare und Bearbeitung ziehen als nächste ' +
+    'Updates ein, jeweils mit Changelog vor der Installation.',
+  openPdf: 'PDF öffnen',
+  dropHint: 'Oder eine PDF-Datei einfach ins Fenster ziehen.',
+  loading: 'Lade PDF …',
+  loadError: 'PDF konnte nicht geladen werden',
+  pageCount: (n: number) => (n === 1 ? '1 Seite' : `${n} Seiten`),
+  fitWidth: 'Breite',
+  close: 'Schließen',
   checkForUpdates: 'Nach Updates suchen',
   updateChecking: 'Prüfe …',
   upToDate: 'pdfedit ist aktuell.',
@@ -24,11 +31,18 @@ const de = {
 
 const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
-  statusTitle: 'Beta shell',
+  statusTitle: 'Beta',
   statusText:
-    'This is the pdfedit app shell: the renderer and PDF engine are being ' +
-    'built — viewing, annotations and editing arrive as updates. From now ' +
-    'on, updates arrive signed, directly in the app.',
+    'pdfedit can now open and display PDFs — with zoom and smooth ' +
+    'scrolling. Annotations, forms and editing arrive as the next updates, ' +
+    'each with the changelog shown before installing.',
+  openPdf: 'Open PDF',
+  dropHint: 'Or just drop a PDF file into the window.',
+  loading: 'Loading PDF …',
+  loadError: 'Could not load the PDF',
+  pageCount: (n: number) => (n === 1 ? '1 page' : `${n} pages`),
+  fitWidth: 'Fit width',
+  close: 'Close',
   checkForUpdates: 'Check for updates',
   updateChecking: 'Checking …',
   upToDate: 'pdfedit is up to date.',

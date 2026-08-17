@@ -2,6 +2,30 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
+use tauri_plugin_dialog::DialogExt;
+
+/// Native "open file" dialog filtered to PDFs. Returns the chosen path
+/// (None if the user cancels). Runs on the async pool — the blocking
+/// dialog call must never run on the main thread.
+#[tauri::command]
+async fn pick_pdf(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("PDF", &["pdf"])
+        .blocking_pick_file();
+    Ok(picked
+        .and_then(|f| f.into_path().ok())
+        .map(|p| p.to_string_lossy().to_string()))
+}
+
+/// Read a PDF from disk and hand the raw bytes to the frontend
+/// (tauri::ipc::Response arrives as an ArrayBuffer — no JSON detour).
+#[tauri::command]
+async fn read_pdf(path: String) -> Result<tauri::ipc::Response, String> {
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
 
 #[derive(Serialize)]
 pub struct UpdateInfoDto {
@@ -47,9 +71,15 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![check_update, install_update])
+        .invoke_handler(tauri::generate_handler![
+            pick_pdf,
+            read_pdf,
+            check_update,
+            install_update
+        ])
         .run(tauri::generate_context!())
         .expect("error while running pdfedit");
 }

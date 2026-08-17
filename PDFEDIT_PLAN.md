@@ -85,8 +85,11 @@ pdfedit/
 
 ## 4. Roadmap
 
-- **Phase 0 — Shell & Renderer:** App-Grundgerüst ✅; pdfium-Rendering,
-  Tabs, Zoom/Scroll/Suche.
+- **Phase 0 — Shell & Renderer:** App-Grundgerüst ✅; PDF-Anzeige ✅
+  (v0.2.0: öffnen per Dialog/Drag & Drop, lazy Rendering, Zoom, Fit-Width —
+  pragmatisch über pdf.js im Webview; die Rust-Engine mit pdfium übernimmt
+  das Rendering, sobald die Bearbeitungs-Phasen sie ohnehin brauchen).
+  Noch offen: Tabs, Suche.
 - **Phase 1 — Anmerken (Free-Kern):** ISO-32000-Annotations komplett,
   Anmerkungsliste, Formulare ausfüllen, inkrementelles Speichern.
 - **Phase 2 — Organisieren & Signieren:** Seiten zusammenführen/teilen/

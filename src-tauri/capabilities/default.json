@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "pdfedit main window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "dialog:default"]
 }

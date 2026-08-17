@@ -227,3 +227,96 @@ button.ghost {
   border-color: var(--error);
   color: var(--error);
 }
+
+/* ---------- PDF viewer ---------- */
+
+.shell.wide {
+  max-width: none;
+  padding: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.open-area {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+button.big {
+  font-size: 16px;
+  padding: 13px 30px;
+}
+
+.drop-hint {
+  margin-top: 12px;
+}
+
+.viewer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.toolbar .docname {
+  font-family: var(--mono);
+  font-size: 13px;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+.toolbar button {
+  padding: 6px 12px;
+}
+
+.zoomlevel {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--faint);
+  min-width: 44px;
+  text-align: center;
+}
+
+.pages {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg);
+}
+
+.page {
+  background: #fff;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+}
+
+.loading {
+  padding: 40px;
+}
+
+.load-error {
+  padding: 40px;
+  color: var(--error);
+  font-family: var(--mono);
+  font-size: 13px;
+}
