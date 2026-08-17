@@ -1,0 +1,75 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "pdfedit",
+  "version": "0.1.0",
+  "identifier": "com.lan-solo.pdfedit",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "pdfedit",
+        "width": 1160,
+        "height": 760,
+        "minWidth": 860,
+        "minHeight": 560,
+        "resizable": true,
+        "backgroundColor": "#0b1220"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRDNUIyNjU1ODE0NURDMzEKUldReDNFV0JWU1piVEx6TWtlTzBZVlZNcTVwMUl3U1l0UkhYMkhDZi81eSthWW9DWStaNUdrMUwK",
+      "endpoints": [
+        "https://github.com/LAN-SOLO/pdfedit/releases/latest/download/latest.json"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": [
+      "app",
+      "dmg",
+      "msi",
+      "nsis",
+      "deb",
+      "rpm",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Productivity",
+    "shortDescription": "PDFs bearbeiten, bis ins kleinste Detail",
+    "longDescription": "pdfedit ist ein vollwertiger PDF-Editor: lesen, Anmerkungen nach ISO-32000-Standard, Formulare, Signaturen, Seiten organisieren — und mit pdfedit inked die vollständige Bearbeitung von Text, Bildern und Vektoren. Lokal, ohne Cloud-Zwang, ohne Telemetrie.",
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "rpm": {
+        "depends": []
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
