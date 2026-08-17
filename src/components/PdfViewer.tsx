@@ -8,6 +8,7 @@ import {
 } from 'pdfjs-dist/web/pdf_viewer.mjs';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'pdfjs-dist/web/pdf_viewer.css';
+import { PDFDocument as PdfLibDocument } from 'pdf-lib';
 import { t } from '../i18n';
 import PagesPanel from './PagesPanel';
 
@@ -86,6 +87,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [findResult, setFindResult] = useState<{ current: number; total: number } | null>(null);
   const [saving, setSaving] = useState(false);
   const [showPages, setShowPages] = useState(false);
+  const [hasFormFields, setHasFormFields] = useState(false);
+  const [flattening, setFlattening] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -170,6 +173,12 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         pdfViewer.setDocument(pdfDocument);
         linkService.setDocument(pdfDocument, null);
         setReady(true);
+        pdfDocument
+          .getFieldObjects()
+          .then((fields) => {
+            if (!destroyed) setHasFormFields(!!fields && Object.keys(fields).length > 0);
+          })
+          .catch(() => {});
       })
       .catch((err: unknown) => {
         if (!destroyed) setError(String((err as Error)?.message ?? err));
@@ -307,6 +316,26 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  const doFlatten = async () => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    setFlattening(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const libDoc = await PdfLibDocument.load(bytes);
+      libDoc.getForm().flatten();
+      const flat = await libDoc.save();
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(flat);
+    } catch (err) {
+      onError(`${t.flattenError}: ${String(err)}`);
+    } finally {
+      setFlattening(false);
+    }
+  };
+
   return (
     <div className="viewer">
       <div className="toolbar">
@@ -343,6 +372,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         <button onClick={() => setShowPages(true)} disabled={!ready}>
           {t.pagesButton}
         </button>
+        {hasFormFields && (
+          <button onClick={doFlatten} disabled={flattening || !ready} title={t.flattenHint}>
+            {flattening ? t.flattening : t.flatten}
+          </button>
+        )}
         <button className="primary" onClick={doSave} disabled={saving || !ready}>
           {saving ? t.saving : t.save}
         </button>

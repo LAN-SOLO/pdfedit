@@ -131,13 +131,72 @@ pdfedit/
   angehängten Seiten beim Merge (nur im Dev-Server sichtbar, Produktions-
   Build ist nicht betroffen, aber der Code war trotzdem unsauber und wurde
   korrigiert).
-- **Phase 1 — Anmerken (Free-Kern):** ISO-32000-Annotations komplett,
-  Anmerkungsliste, Formulare ausfüllen, inkrementelles Speichern.
-- **Phase 2 — Organisieren & Signieren:** Seiten zusammenführen/teilen/
-  drehen/umsortieren, Komprimierung, PAdES-Signatur. → Beta-Ausbau.
-- **Phase 3 — inked:** Text-Editing mit Reflow, Bilder/Vektoren, OCR,
-  echtes Schwärzen, Formular-Designer. → Verkaufsstart inked.
-- **Phase 4 — Feinschliff:** Export (Word/Bilder), Batch-CLI, QES-Anbindung.
+### Weg zum letzten Beta-Release (Stand 2026-08-18)
+
+Ab hier: jede Phase = eine getaggte, gebaute, auf dem Test-Mac installierte
+und funktional verifizierte Version, bevor die nächste beginnt — genau wie
+v0.2.0–v0.5.0. Kein Phasenwechsel ohne grünen `cargo check`, grünen
+Frontend-Build und mindestens einen echten Bearbeiten-Speichern-Neuladen-
+Zyklus im Browser plus (wo relevant) Byte-Level-Kontrolle der gespeicherten
+Datei. Reihenfolge nach Risiko: Tractable-und-hoher-Nutzen zuerst, die zwei
+wirklich schwierigen Brocken (OCR, Text-/Bildbearbeitung) zuletzt, mit
+entsprechend mehr Testzeit.
+
+- **v0.6.0 — Formulare ✅:** AcroForm-Ausfüllen rendert über pdf.js'
+  `ENABLE_FORMS` bereits interaktiv — mit einer per pdf-lib erzeugten
+  echten Formular-Testdatei verifiziert (Textfeld + Checkbox, beide
+  ausgefüllt, gespeichert, `/AS /Yes` und der Feldwert im gespeicherten
+  PDF bestätigt). Neu: „Formular flach rechnen" (Button erscheint nur,
+  wenn `pdfDocument.getFieldObjects()` echte Felder findet) — bäckt die
+  Werte per pdf-lib `form.flatten()` dauerhaft in die Seite ein; danach
+  keine Formularfelder mehr, Inhalt bleibt aber echter, durchsuchbarer
+  Text (per Volltextsuche 1/1-Treffer bestätigt, nicht nur optisch).
+  **Lektion:** Bei pdf-lib-generierten PDFs liegen Dictionary-Objekte oft
+  in komprimierten Object-Streams — rohes Byte-Grep auf `/AcroForm` &Co.
+  liefert dort systematisch falsche Negative. Für Struktur-Verifikation
+  entweder dekomprimieren oder (robuster) die App selbst über pdf.js
+  live parsen lassen. Zweite Lektion: beim wiederholten Testen mit
+  gleichem Dateinamen im Download-Ordner immer prüfen, ob wirklich die
+  neue Datei vorliegt, nicht eine alte gleichen Namens von einem
+  früheren Testlauf — hat hier für eine ganze Verifikationsrunde eine
+  falsche Fährte gelegt.
+- **v0.7.0 — Stempel & Signatur (eigener Dialog):** Ersetzt die in v0.4.0
+  entfernten kaputten pdf.js-Werkzeuge durch echte, selbst gebaute: Bild
+  auswählen (Datei-Dialog) oder Unterschrift zeichnen/eingeben (Canvas/
+  Schreibschrift-Font) → als Bild in eine neue Annotationsebene auf die
+  Seite platzieren, verschieben/skalieren, dauerhaft in `saveDocument()`
+  eingebacken. Bewusst *visuelle* Signatur, keine kryptografische PAdES —
+  das bleibt laut Produktdefinition ein späteres, externes-Anbieter-Thema
+  und wird im Dialog auch so benannt (keine falschen Versprechen).
+- **v0.8.0 — Komprimierung:** Bild-Downsampling/Requalifizierung beim
+  Speichern (Presets „schnell/ausgewogen/klein"), Dateigröße spürbar
+  senken ohne Textqualität zu verlieren (nur eingebettete Bilder anfassen).
+- **v0.9.0 — Schwärzen (inked):** Bereich markieren → Seite an der Stelle
+  wirklich rastern (Inhalt darunter entfernt, nicht nur überdeckt) +
+  Bestätigungsdialog (irreversibel) + Metadaten-Reinigung (Autor/Titel/
+  XMP) als Option. Reuse der Pages-Panel-Thumbnail-Rendering-Technik.
+- **v0.10.0 — OCR (inked):** `tesseract.js` (WASM, lokal, kein Netzwerk)
+  legt eine unsichtbare, durchsuchbare Textebene über gescannte Seiten.
+  Start mit Deutsch + Englisch, weitere Sprachpakete nachladbar. Größter
+  Einzel-Brocken bisher (WASM-Worker-Integration, Sprachdaten-Bundling in
+  Tauri) — entsprechend mehr Testzeit einplanen.
+- **v0.11.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
+  echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
+  umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das
+  Zeitfenster bis zum Beta sprengen. Pragmatischer, ehrlich kommunizierter
+  Ansatz stattdessen: Klick auf bestehenden Text/ein Bild → Region wird
+  gerastert abgedeckt (Originalinhalt weg) + eine editierbare Ersatzbox
+  (Text mit bestmöglich passender Schriftgröße/-farbe, oder neues Bild)
+  wird exakt darüber platziert. Kein Reflow über Absatzgrenzen hinweg,
+  keine Vektor-Objektbearbeitung — das steht so auch im Dialog und im
+  Disclaimer, nicht nur im Kleingedruckten.
+- **v0.12.0 — Letztes Beta: Politur & Gate:** Free/inked-Kennzeichnung in
+  der UI (welche Werkzeuge zu welchem Tier gehören — Bezahl-Backend folgt
+  separat, hier nur ehrliche UI-Kennzeichnung), Tastaturkürzel für die
+  wichtigsten Aktionen, Fehlerbehandlung/Robustheit-Durchgang (jede
+  Dialog-/Speicher-Fehlerpfad geprüft), Menüleiste nativ (macOS/Windows/
+  Linux), finaler Regressionsdurchlauf aller Phasen v0.2.0–v0.11.0 an
+  einem einzigen Dokument nacheinander. Danach beginnt der intensive Test.
 
 ## 5. Website
 

@@ -42,6 +42,11 @@ const de = {
   pagesApply: 'Übernehmen',
   pagesApplying: 'Wende Änderungen an …',
   pagesExporting: 'Exportiere …',
+  flatten: 'Formular flach rechnen',
+  flattening: 'Rechne flach …',
+  flattenHint:
+    'Ausgefüllte Werte dauerhaft in die Seite einbrennen — danach nicht mehr als Formular bearbeitbar, sieht aber in jedem Viewer korrekt aus.',
+  flattenError: 'Flach rechnen fehlgeschlagen',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -114,6 +119,11 @@ const en: typeof de = {
   pagesApply: 'Apply',
   pagesApplying: 'Applying changes …',
   pagesExporting: 'Exporting …',
+  flatten: 'Flatten form',
+  flattening: 'Flattening …',
+  flattenHint:
+    'Burn the filled-in values permanently into the page — no longer editable as a form afterward, but looks correct in every viewer.',
+  flattenError: 'Flatten failed',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',
