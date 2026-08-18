@@ -71,6 +71,22 @@ const de = {
   compressHint:
     'Verkleinert eingebettete JPEG-Bilder (Fotos, Scans). Text und Vektorgrafik bleiben unverändert. Kann Bildqualität sichtbar reduzieren — je nach Stufe.',
   compressError: 'Komprimieren fehlgeschlagen',
+  redactButton: 'Schwärzen',
+  redactHint: 'Bereich auf der Seite aufziehen, dann „Anwenden" — der Inhalt darunter wird dauerhaft entfernt, nicht nur überdeckt.',
+  redactMarkCount: (n: number) => (n === 1 ? '1 Markierung' : `${n} Markierungen`),
+  redactApply: 'Anwenden',
+  redactDiscard: 'Verwerfen',
+  redacting: 'Schwärze …',
+  redactConfirmTitle: 'Schwärzen bestätigen',
+  redactConfirmBody: (n: number) =>
+    n === 1
+      ? 'Die markierte Stelle wird unwiderruflich aus der Seite entfernt — die betroffene Seite wird dabei zu einem Bild. Text auf dieser Seite ist danach nicht mehr durchsuchbar oder kopierbar.'
+      : `Die ${n} markierten Stellen werden unwiderruflich aus ihren Seiten entfernt — die betroffenen Seiten werden dabei zu Bildern. Text auf diesen Seiten ist danach nicht mehr durchsuchbar oder kopierbar.`,
+  redactConfirmHint:
+    'Vorhandene Formularfelder, Markierungen und Notizen auf den betroffenen Seiten werden mitentfernt. Andere Seiten bleiben unverändert. Diese Aktion lässt sich nicht rückgängig machen.',
+  redactCleanMetadata: 'Metadaten auch bereinigen (Autor, Titel, Thema, Stichwörter, Ersteller-Programm)',
+  redactError: 'Schwärzen fehlgeschlagen',
+  redactMarksLostWarning: 'Nicht angewendete Schwärzungs-Markierungen wurden beim Tab-Wechsel verworfen.',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -172,6 +188,22 @@ const en: typeof de = {
   compressHint:
     'Shrinks embedded JPEG images (photos, scans). Text and vector graphics stay unchanged. Can visibly reduce image quality, depending on the level.',
   compressError: 'Compression failed',
+  redactButton: 'Redact',
+  redactHint: 'Drag a box over the area, then "Apply" — the content underneath is permanently removed, not just covered.',
+  redactMarkCount: (n: number) => (n === 1 ? '1 mark' : `${n} marks`),
+  redactApply: 'Apply',
+  redactDiscard: 'Discard',
+  redacting: 'Redacting …',
+  redactConfirmTitle: 'Confirm redaction',
+  redactConfirmBody: (n: number) =>
+    n === 1
+      ? 'The marked area will be permanently removed from the page — the affected page becomes an image. Text on that page will no longer be searchable or selectable.'
+      : `The ${n} marked areas will be permanently removed from their pages — the affected pages become images. Text on those pages will no longer be searchable or selectable.`,
+  redactConfirmHint:
+    'Existing form fields, highlights and notes on the affected pages are removed along with it. Other pages stay untouched. This action cannot be undone.',
+  redactCleanMetadata: 'Also clean metadata (author, title, subject, keywords, producer)',
+  redactError: 'Redaction failed',
+  redactMarksLostWarning: 'Unapplied redaction marks were discarded when the tab changed.',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',

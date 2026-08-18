@@ -118,6 +118,16 @@ button.primary:hover:not(:disabled) {
   background: #0369a1;
 }
 
+button.danger {
+  background: var(--error);
+  border-color: var(--error);
+  color: #fff;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
 button.ghost {
   background: none;
   border: none;
@@ -282,7 +292,8 @@ button.big {
   white-space: nowrap;
 }
 
-.toolbar .spacer {
+.toolbar .spacer,
+.redactbar .spacer {
   flex: 1;
 }
 
@@ -374,6 +385,27 @@ button.big {
   padding: 40px;
 }
 
+.redact-mark {
+  position: absolute;
+  background: rgba(220, 38, 38, 0.55);
+  border: 1px solid #dc2626;
+  pointer-events: none;
+}
+
+.pdfjs-container.redacting .page {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.redactbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
 .load-error {
   padding: 40px;
   color: var(--error);
@@ -459,6 +491,14 @@ button.big {
 
 .choices.center {
   justify-content: center;
+}
+
+.checkrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  cursor: pointer;
 }
 
 .numinput {

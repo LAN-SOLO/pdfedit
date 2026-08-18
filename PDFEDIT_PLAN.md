@@ -228,10 +228,43 @@ entsprechend mehr Testzeit.
   kurzzeitig abfangen und die tatsächlich gespeicherten Bytes direkt
   auslesen, statt auf die Ankunft einer Datei im Downloads-Ordner zu
   warten.
-- **v0.9.0 — Schwärzen (inked):** Bereich markieren → Seite an der Stelle
-  wirklich rastern (Inhalt darunter entfernt, nicht nur überdeckt) +
-  Bestätigungsdialog (irreversibel) + Metadaten-Reinigung (Autor/Titel/
-  XMP) als Option. Reuse der Pages-Panel-Thumbnail-Rendering-Technik.
+- **v0.9.0 — Schwärzen ✅ (inked):** Eigenes Werkzeug „Schwärzen" — Rechteck(e)
+  direkt über der pdf.js-Seite aufziehen (eigener Overlay, nicht pdf.js'
+  Annotationssystem), „Anwenden" rastert jede markierte Seite **komplett**
+  neu (via pdf.js, gleiche Technik wie Pages-Panel-Thumbnails) mit den
+  Markierungen bereits als deckend schwarze Rechtecke in die Pixel
+  gemalt, dann ersetzt eine brandneue pdf-lib-Seite (nicht die alte
+  mutiert) die betroffene Seite komplett — kein Leftover-Content-Stream,
+  keine `/Annots` (Formularfelder/Notizen auf der Seite sind mit weg).
+  AcroForm-Feldwerte auf betroffenen Seiten werden vor dem Rastern über
+  das bestehende `form.flatten()` (v0.6.0) gebacken, sonst blieben sie im
+  Feld-Dict extrahierbar, obwohl unsichtbar. Bestätigungsdialog
+  (irreversibel, mit Auflistung was mitentfernt wird) + optionale
+  Metadaten-Reinigung (Autor/Titel/Thema/Stichwörter/Ersteller-Programm +
+  XMP-Metadatenstream).
+  Bis zum Byte-Level verifiziert: Ziel-Textzeile nach dem Schwärzen mit 0
+  extrahierbaren Text-Items auf der betroffenen Seite (`getTextContent()`),
+  andere Seite unverändert durchsuchbar, exakte Pixel-Stichprobe an der
+  erwarteten Koordinate (94 % reines Schwarz vs. 100 % Weiß in einer
+  Kontrollregion), XMP-Stream nach Bereinigung im rohen Datei-Byte-Strom
+  nicht mehr auffindbar (nicht nur die Referenz entfernt).
+  **Lektion 1 (pdf-lib-Objektmüll):** Nur die Catalog-Referenz auf den
+  XMP-Metadata-Stream zu löschen reicht nicht — pdf-lib serialisiert beim
+  Speichern alle registrierten Objekte, nicht nur die vom Trailer aus
+  erreichbaren. Das verwaiste Objekt muss zusätzlich explizit aus dem
+  `PDFContext` gelöscht werden (`context.delete(ref)`), sonst stehen die
+  XMP-Rohdaten trotzdem noch in der Datei.
+  **Lektion 2 (Testumgebung, kein Produktfehler):** `page.render()` hängt
+  in Chrome komplett, wenn der automatisierte Tab laut
+  `document.visibilityState` nicht sichtbar ist (im Hintergrund/verdeckt)
+  — Chrome pausiert `requestAnimationFrame` für unsichtbare Tabs, worauf
+  pdf.js' mehrstufiges Rendering angewiesen ist. Reproduziert mit einem
+  von der App komplett unabhängigen Minimal-Snippet; sobald der Tab
+  sichtbar war, lief derselbe Aufruf sofort durch. Betraf in diesem
+  Zustand auch das längst ausgelieferte Pages-Panel (dessen Thumbnails
+  aus demselben Grund hingen) — kein Hinweis auf einen echten Regressions-
+  Bug dort, nur ein Beleg dafür, dass Rendering-Verifikation einen
+  sichtbaren Browser-Tab braucht.
 - **v0.10.0 — OCR (inked):** `tesseract.js` (WASM, lokal, kein Netzwerk)
   legt eine unsichtbare, durchsuchbare Textebene über gescannte Seiten.
   Start mit Deutsch + Englisch, weitere Sprachpakete nachladbar. Größter

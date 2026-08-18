@@ -14,6 +14,8 @@ import PagesPanel from './PagesPanel';
 import StampDialog from './StampDialog';
 import CompressDialog from './CompressDialog';
 import { compressPdf, type CompressPreset } from '../compress';
+import RedactConfirmDialog from './RedactConfirmDialog';
+import { redactPdf, type RedactMark } from '../redact';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -31,6 +33,13 @@ const TOOL_MODE: Record<Tool, number> = {
   freetext: AnnotationEditorType.FREETEXT,
   ink: AnnotationEditorType.INK,
 };
+
+interface PlacedMark extends RedactMark {
+  id: number;
+  pageIndex: number;
+}
+
+let nextMarkId = 1;
 
 interface PdfViewerProps {
   data: Uint8Array;
@@ -91,10 +100,23 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [flattening, setFlattening] = useState(false);
   const [showStamp, setShowStamp] = useState(false);
   const [showCompress, setShowCompress] = useState(false);
+  const [redacting, setRedacting] = useState(false);
+  const [marks, setMarks] = useState<PlacedMark[]>([]);
+  const [showRedactConfirm, setShowRedactConfirm] = useState(false);
+  const [redactBusy, setRedactBusy] = useState(false);
+  const marksRef = useRef<PlacedMark[]>([]);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
     let destroyed = false;
+
+    // Redaction marks are page-coordinate percentages tied to this exact
+    // document's pages — any time `data` changes underneath (a replace from
+    // Pages/Stamp/Flatten/Compress, or a fresh load), stale marks could
+    // point at the wrong page/content. Drop them rather than risk a
+    // silently misaligned redaction.
+    setMarks([]);
+    setRedacting(false);
 
     const eventBus = new EventBus();
     eventBusRef.current = eventBus;
@@ -208,6 +230,126 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
+  useEffect(() => {
+    marksRef.current = marks;
+  }, [marks]);
+
+  // Pending (unapplied) redaction marks live only in this component's
+  // state — unlike a drawn Ink stroke, they have no pdf.js editor object
+  // that checkpoint()/saveDocument() could preserve across an unmount
+  // (e.g. switching tabs). Rather than silently lose them, tell the user.
+  useEffect(() => {
+    return () => {
+      if (marksRef.current.length > 0) onError(t.redactMarksLostWarning);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Draws the in-progress drag rectangle and turns it into a normalized
+  // mark on release. Attached directly to the pdf.js-managed page DOM
+  // (outside React's tree, same reasoning as the rest of this component's
+  // pdf.js integration) rather than as a React overlay, since pdf.js owns
+  // and reflows those page elements on zoom/scroll itself.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!redacting || !container) return;
+
+    container.classList.add('redacting');
+
+    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
+      null;
+
+    const onDown = (e: PointerEvent) => {
+      const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
+      const el = document.createElement('div');
+      el.className = 'redact-mark';
+      pageEl.appendChild(el);
+      drag = {
+        pageEl,
+        pageIndex: Number(pageEl.dataset.pageNumber) - 1,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        el,
+      };
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!drag) return;
+      const rect = drag.pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(drag.startX, curX);
+      const y = Math.min(drag.startY, curY);
+      const w = Math.abs(curX - drag.startX);
+      const h = Math.abs(curY - drag.startY);
+      Object.assign(drag.el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!drag) return;
+      const { pageEl, pageIndex, startX, startY, el } = drag;
+      drag = null;
+      el.remove();
+      const rect = pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(startX, curX);
+      const y = Math.min(startY, curY);
+      const w = Math.abs(curX - startX);
+      const h = Math.abs(curY - startY);
+      if (w < 6 || h < 6 || rect.width === 0 || rect.height === 0) return;
+      setMarks((prev) => [
+        ...prev,
+        {
+          id: nextMarkId++,
+          pageIndex,
+          xPct: x / rect.width,
+          yPct: y / rect.height,
+          wPct: w / rect.width,
+          hPct: h / rect.height,
+        },
+      ]);
+    };
+
+    container.addEventListener('pointerdown', onDown);
+    container.addEventListener('pointermove', onMove);
+    container.addEventListener('pointerup', onUp);
+    return () => {
+      container.classList.remove('redacting');
+      container.removeEventListener('pointerdown', onDown);
+      container.removeEventListener('pointermove', onMove);
+      container.removeEventListener('pointerup', onUp);
+      drag?.el.remove();
+    };
+  }, [redacting]);
+
+  // Renders already-placed marks as overlays. Percentage-based sizing keeps
+  // them correctly positioned across zoom changes without recomputing here.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const placed: HTMLElement[] = [];
+    for (const mark of marks) {
+      const pageEl = container.querySelector(`.page[data-page-number="${mark.pageIndex + 1}"]`);
+      if (!pageEl) continue;
+      const el = document.createElement('div');
+      el.className = 'redact-mark';
+      Object.assign(el.style, {
+        left: `${mark.xPct * 100}%`,
+        top: `${mark.yPct * 100}%`,
+        width: `${mark.wPct * 100}%`,
+        height: `${mark.hPct * 100}%`,
+      });
+      pageEl.appendChild(el);
+      placed.push(el);
+    }
+    return () => {
+      placed.forEach((el) => el.remove());
+    };
+  }, [marks]);
+
   // A stroke/text-box/etc. the user just created stays "live" in its editor
   // until something commits it — normally clicking the Select tool. Forcing
   // the mode to NONE does exactly that, so a pending edit is never lost to
@@ -265,8 +407,16 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
   const selectTool = (next: Tool) => {
     setTool(next);
+    setRedacting(false);
     const pdfViewer = pdfViewerRef.current;
     if (pdfViewer) pdfViewer.annotationEditorMode = { mode: TOOL_MODE[next] };
+  };
+
+  const toggleRedact = () => {
+    setRedacting((v) => !v);
+    setTool('select');
+    const pdfViewer = pdfViewerRef.current;
+    if (pdfViewer) pdfViewer.annotationEditorMode = { mode: AnnotationEditorType.NONE };
   };
 
   const zoom = (dir: 1 | -1) => {
@@ -356,6 +506,33 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  const doRedact = async (cleanMetadata: boolean) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument || marks.length === 0) return;
+    setRedactBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const marksByPage = new Map<number, RedactMark[]>();
+      for (const mark of marks) {
+        const list = marksByPage.get(mark.pageIndex) ?? [];
+        list.push(mark);
+        marksByPage.set(mark.pageIndex, list);
+      }
+      const { bytes: redacted } = await redactPdf(bytes, marksByPage, { cleanMetadata });
+      setMarks([]);
+      setShowRedactConfirm(false);
+      setRedacting(false);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(redacted);
+    } catch (err) {
+      onError(`${t.redactError}: ${String(err)}`);
+    } finally {
+      setRedactBusy(false);
+    }
+  };
+
   // Placement, moving and resizing is pdf.js's own Stamp editor — we only
   // supply the image. `pasteEditor` lives on the PAGE's AnnotationEditorLayer
   // instance (reached through the page view's builder wrapper), not on the
@@ -442,7 +619,25 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         <button onClick={() => setShowStamp(true)} disabled={!ready}>
           {t.stampButton}
         </button>
+        <button className={redacting ? 'primary' : ''} onClick={toggleRedact} disabled={!ready} title={t.redactHint}>
+          {t.redactButton}
+        </button>
       </div>
+
+      {(redacting || marks.length > 0) && (
+        <div className="redactbar">
+          <span className="faint">{redacting ? t.redactHint : t.redactMarkCount(marks.length)}</span>
+          <span className="spacer" />
+          {marks.length > 0 && (
+            <>
+              <button onClick={() => setMarks([])}>{t.redactDiscard}</button>
+              <button className="danger" onClick={() => setShowRedactConfirm(true)}>
+                {t.redactApply}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {showFind && (
         <div className="findbar">
@@ -494,6 +689,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       {showStamp && <StampDialog onPlace={placeStamp} onClose={() => setShowStamp(false)} />}
 
       {showCompress && <CompressDialog onCompress={doCompress} onClose={() => setShowCompress(false)} />}
+
+      {showRedactConfirm && (
+        <RedactConfirmDialog
+          markCount={marks.length}
+          busy={redactBusy}
+          onConfirm={doRedact}
+          onCancel={() => setShowRedactConfirm(false)}
+        />
+      )}
     </div>
   );
 });
