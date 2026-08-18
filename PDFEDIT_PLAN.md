@@ -265,6 +265,25 @@ entsprechend mehr Testzeit.
   aus demselben Grund hingen) — kein Hinweis auf einen echten Regressions-
   Bug dort, nur ein Beleg dafür, dass Rendering-Verifikation einen
   sichtbaren Browser-Tab braucht.
+- **v0.9.1 — UI/UX-Überarbeitung ✅:** Auf ausdrücklichen Wunsch vor OCR
+  eingeschoben — Nutzer-Feedback direkt am laufenden Beta-Build: reine
+  Text-Buttons ohne Icons wirkten unübersichtlich, nicht am Niveau
+  etablierter PDF-Tools (PDF Expert, Acrobat, Preview). Eigenes,
+  handgezeichnetes SVG-Icon-Set (keine neue Abhängigkeit) für alle
+  Werkzeuge/Aktionen; neue dauerhafte Seitenleiste mit Seiten-
+  Miniaturansichten (Klick springt zur Seite) statt nur per Modal
+  erreichbar — Reorder/Rotieren/Zusammenführen bleibt im bestehenden
+  Pages-Dialog, der jetzt über die Seitenleiste erreichbar ist. Werkzeug-
+  Leiste in klare Gruppen sortiert (Anmerken | Dokument-Aktionen) mit
+  Trenner; „aktives Werkzeug" bekommt einen eigenen, dezenten Akzent-Stil
+  statt denselben kräftigen Blauton wie der Speichern-Button zu teilen —
+  vorher standen beide optisch im selben Rang, was die eigentliche
+  Haupt-Aktion (Speichern) verwässerte. Zoom/Fit-Kontrollen als
+  zusammengefasste „Segmented"-Gruppe statt lose Einzel-Buttons.
+  Getestet bis zur Fenster-Untergrenze (860px) — Werkzeugleiste scrollt
+  dort horizontal statt zu brechen. Nebenbei: veralteten Beta-Text auf
+  dem Startbildschirm korrigiert (nannte Formulare/Signieren/Bearbeitung
+  noch als „kommend", obwohl seit v0.6.0–v0.9.0 bereits ausgeliefert).
 - **v0.10.0 — OCR (inked):** `tesseract.js` (WASM, lokal, kein Netzwerk)
   legt eine unsichtbare, durchsuchbare Textebene über gescannte Seiten.
   Start mit Deutsch + Englisch, weitere Sprachpakete nachladbar. Größter

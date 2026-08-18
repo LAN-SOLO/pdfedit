@@ -3,12 +3,11 @@ const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert und ' +
-    'durchsucht sie — und organisiert Seiten: umsortieren, drehen, ' +
-    'löschen, einfügen, zusammenführen, als Auszug exportieren. ' +
-    'Formulare ausfüllen, Signieren und die vollständige Bearbeitung ' +
-    'ziehen als nächste Updates ein, jeweils mit Changelog vor der ' +
-    'Installation.',
+    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert, durchsucht ' +
+    'und organisiert Seiten, füllt Formulare aus, setzt Bild-Unterschriften ' +
+    'und Stempel, komprimiert und schwärzt Inhalte dauerhaft. OCR und die ' +
+    'vollständige Text-/Bildbearbeitung ziehen als nächste Updates ein, ' +
+    'jeweils mit Changelog vor der Installation.',
   openPdf: 'PDF öffnen',
   newPdf: 'Neues PDF',
   dropHint: 'Oder eine PDF-Datei einfach ins Fenster ziehen.',
@@ -17,6 +16,9 @@ const de = {
   pageCount: (n: number) => (n === 1 ? '1 Seite' : `${n} Seiten`),
   fitWidth: 'Breite',
   fitPage: 'Seite',
+  zoomOut: 'Verkleinern',
+  zoomIn: 'Vergrößern',
+  sidebarToggle: 'Seitenleiste ein-/ausblenden',
   close: 'Schließen',
   closeTab: 'Tab schließen',
   save: 'Speichern',
@@ -121,11 +123,11 @@ const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit opens multiple PDFs in tabs, highlights, annotates and ' +
-    'searches them — and organizes pages: reorder, rotate, delete, ' +
-    'insert, merge, export a selection. Filling forms, signing, and ' +
-    'full editing arrive as the next updates, each with the changelog ' +
-    'shown before installing.',
+    'pdfedit opens multiple PDFs in tabs, highlights, annotates, searches ' +
+    'and organizes pages, fills out forms, places image signatures and ' +
+    'stamps, compresses and permanently redacts content. OCR and full ' +
+    'text/image editing arrive as the next updates, each with the ' +
+    'changelog shown before installing.',
   openPdf: 'Open PDF',
   newPdf: 'New PDF',
   dropHint: 'Or just drop a PDF file into the window.',
@@ -134,6 +136,9 @@ const en: typeof de = {
   pageCount: (n: number) => (n === 1 ? '1 page' : `${n} pages`),
   fitWidth: 'Fit width',
   fitPage: 'Fit page',
+  zoomOut: 'Zoom out',
+  zoomIn: 'Zoom in',
+  sidebarToggle: 'Toggle sidebar',
   close: 'Close',
   closeTab: 'Close tab',
   save: 'Save',

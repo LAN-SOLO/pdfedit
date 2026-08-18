@@ -16,6 +16,25 @@ import CompressDialog from './CompressDialog';
 import { compressPdf, type CompressPreset } from '../compress';
 import RedactConfirmDialog from './RedactConfirmDialog';
 import { redactPdf, type RedactMark } from '../redact';
+import Sidebar from './Sidebar';
+import {
+  IconSelect,
+  IconHighlight,
+  IconText,
+  IconDraw,
+  IconStamp,
+  IconRedact,
+  IconPages,
+  IconCompress,
+  IconFlatten,
+  IconSave,
+  IconSearch,
+  IconZoomOut,
+  IconZoomIn,
+  IconFitWidth,
+  IconFitPage,
+  IconSidebar,
+} from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -32,6 +51,13 @@ const TOOL_MODE: Record<Tool, number> = {
   highlight: AnnotationEditorType.HIGHLIGHT,
   freetext: AnnotationEditorType.FREETEXT,
   ink: AnnotationEditorType.INK,
+};
+
+const TOOL_ICON: Record<Tool, (props: { size?: number }) => JSX.Element> = {
+  select: IconSelect,
+  highlight: IconHighlight,
+  freetext: IconText,
+  ink: IconDraw,
 };
 
 interface PlacedMark extends RedactMark {
@@ -105,6 +131,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [showRedactConfirm, setShowRedactConfirm] = useState(false);
   const [redactBusy, setRedactBusy] = useState(false);
   const marksRef = useRef<PlacedMark[]>([]);
+  const [showSidebar, setShowSidebar] = useState(true);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -431,7 +458,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     if (pdfViewerRef.current) pdfViewerRef.current.currentScaleValue = 'page-fit';
   };
 
-  const jumpToPage = useCallback((raw: string) => {
+  const jumpToPage = useCallback((raw: string | number) => {
     const n = Math.round(Number(raw));
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer || !Number.isFinite(n)) return;
@@ -564,6 +591,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   return (
     <div className="viewer">
       <div className="toolbar">
+        <button
+          className={showSidebar ? 'iconbtn active' : 'iconbtn'}
+          onClick={() => setShowSidebar((v) => !v)}
+          disabled={!ready}
+          title={t.sidebarToggle}
+          aria-label={t.sidebarToggle}
+        >
+          <IconSidebar size={16} />
+        </button>
         <span className="docname" title={name}>
           {name}
         </span>
@@ -582,46 +618,86 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           </span>
         )}
         <span className="spacer" />
-        <button className={showFind ? 'primary' : ''} onClick={() => setShowFind((v) => !v)}>
-          {t.find}
+        <button
+          className={showFind ? 'iconbtn active' : 'iconbtn'}
+          onClick={() => setShowFind((v) => !v)}
+          title={t.find}
+          aria-label={t.find}
+        >
+          <IconSearch size={16} />
         </button>
-        <button onClick={() => zoom(-1)} aria-label="zoom out">
-          −
-        </button>
-        <span className="zoomlevel">{scalePct}%</span>
-        <button onClick={() => zoom(1)} aria-label="zoom in">
-          +
-        </button>
-        <button onClick={fitWidth}>{t.fitWidth}</button>
-        <button onClick={fitPage}>{t.fitPage}</button>
-        <button onClick={() => setShowPages(true)} disabled={!ready}>
-          {t.pagesButton}
-        </button>
-        {hasFormFields && (
-          <button onClick={doFlatten} disabled={flattening || !ready} title={t.flattenHint}>
-            {flattening ? t.flattening : t.flatten}
+        <div className="segmented">
+          <button onClick={() => zoom(-1)} aria-label="zoom out" title={t.zoomOut}>
+            <IconZoomOut size={15} />
           </button>
-        )}
-        <button onClick={() => setShowCompress(true)} disabled={!ready}>
-          {t.compressButton}
-        </button>
-        <button className="primary" onClick={doSave} disabled={saving || !ready}>
+          <span className="zoomlevel">{scalePct}%</span>
+          <button onClick={() => zoom(1)} aria-label="zoom in" title={t.zoomIn}>
+            <IconZoomIn size={15} />
+          </button>
+        </div>
+        <div className="segmented">
+          <button onClick={fitWidth} title={t.fitWidth} aria-label={t.fitWidth}>
+            <IconFitWidth size={15} />
+          </button>
+          <button onClick={fitPage} title={t.fitPage} aria-label={t.fitPage}>
+            <IconFitPage size={15} />
+          </button>
+        </div>
+        <button className="primary iconbtn" onClick={doSave} disabled={saving || !ready}>
+          <IconSave size={16} />
           {saving ? t.saving : t.save}
         </button>
       </div>
 
       <div className="edittoolbar">
-        {(Object.keys(TOOL_MODE) as Tool[]).map((tl) => (
-          <button key={tl} className={tool === tl ? 'primary' : ''} onClick={() => selectTool(tl)}>
-            {t.tools[tl]}
+        <div className="toolgroup">
+          {(Object.keys(TOOL_MODE) as Tool[]).map((tl) => {
+            const ToolIcon = TOOL_ICON[tl];
+            return (
+              <button
+                key={tl}
+                className={tool === tl ? 'iconbtn active' : 'iconbtn'}
+                onClick={() => selectTool(tl)}
+                title={t.tools[tl]}
+              >
+                <ToolIcon size={16} />
+                {t.tools[tl]}
+              </button>
+            );
+          })}
+          <button className="iconbtn" onClick={() => setShowStamp(true)} disabled={!ready} title={t.stampButton}>
+            <IconStamp size={16} />
+            {t.stampButton}
           </button>
-        ))}
-        <button onClick={() => setShowStamp(true)} disabled={!ready}>
-          {t.stampButton}
-        </button>
-        <button className={redacting ? 'primary' : ''} onClick={toggleRedact} disabled={!ready} title={t.redactHint}>
-          {t.redactButton}
-        </button>
+          <button
+            className={redacting ? 'iconbtn active' : 'iconbtn'}
+            onClick={toggleRedact}
+            disabled={!ready}
+            title={t.redactHint}
+          >
+            <IconRedact size={16} />
+            {t.redactButton}
+          </button>
+        </div>
+
+        <div className="tooldivider" />
+
+        <div className="toolgroup">
+          <button className="iconbtn" onClick={() => setShowPages(true)} disabled={!ready} title={t.pagesTitle}>
+            <IconPages size={16} />
+            {t.pagesButton}
+          </button>
+          {hasFormFields && (
+            <button className="iconbtn" onClick={doFlatten} disabled={flattening || !ready} title={t.flattenHint}>
+              <IconFlatten size={16} />
+              {flattening ? t.flattening : t.flatten}
+            </button>
+          )}
+          <button className="iconbtn" onClick={() => setShowCompress(true)} disabled={!ready} title={t.compressButton}>
+            <IconCompress size={16} />
+            {t.compressButton}
+          </button>
+        </div>
       </div>
 
       {(redacting || marks.length > 0) && (
@@ -665,12 +741,22 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         </div>
       )}
 
-      <div className="pdfjs-outer">
-        <div className="pdfjs-container" ref={containerRef}>
-          <div className="pdfViewer" ref={viewerElRef} />
+      <div className="viewer-body">
+        {showSidebar && ready && (
+          <Sidebar
+            data={data}
+            currentPage={pageInfo.current}
+            onJump={jumpToPage}
+            onOpenPages={() => setShowPages(true)}
+          />
+        )}
+        <div className="pdfjs-outer">
+          <div className="pdfjs-container" ref={containerRef}>
+            <div className="pdfViewer" ref={viewerElRef} />
+          </div>
+          {error && <div className="load-error">{`${t.loadError}: ${error}`}</div>}
+          {!ready && !error && <div className="faint loading">{t.loading}</div>}
         </div>
-        {error && <div className="load-error">{`${t.loadError}: ${error}`}</div>}
-        {!ready && !error && <div className="faint loading">{t.loading}</div>}
       </div>
 
       {showPages && (

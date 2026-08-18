@@ -136,6 +136,60 @@ button.ghost {
   color: var(--faint);
 }
 
+button.ghost.small {
+  font-size: 13px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+button.ghost.small:hover:not(:disabled) {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Icon (+ optional label) buttons used throughout the viewer toolbars.
+   Distinct from .primary: .primary is reserved for the single strongest
+   call-to-action (Save); .iconbtn.active marks a currently-selected tool
+   or toggled panel with a lighter accent tint instead, so the two don't
+   visually compete for "most important button on screen". */
+.iconbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  line-height: 1;
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.iconbtn:hover:not(:disabled) {
+  background: #16233c;
+  color: var(--text);
+  border-color: transparent;
+}
+
+.iconbtn.active {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: var(--accent);
+}
+
+.iconbtn svg {
+  flex-shrink: 0;
+}
+
+.iconbtn.primary {
+  color: #fff;
+}
+
+/* icon-only buttons (zoom, fit, search, sidebar toggle) — square, no label */
+.toolbar > .iconbtn:not(.primary),
+.segmented button {
+  padding: 6px 7px;
+}
+
 .ok-text {
   color: var(--ok);
   font-family: var(--mono);
@@ -277,8 +331,8 @@ button.big {
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 6px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--panel);
 }
@@ -286,10 +340,11 @@ button.big {
 .toolbar .docname {
   font-family: var(--mono);
   font-size: 13px;
-  max-width: 40%;
+  max-width: 30%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  margin-left: 4px;
 }
 
 .toolbar .spacer,
@@ -297,29 +352,63 @@ button.big {
   flex: 1;
 }
 
-.toolbar button {
-  padding: 6px 12px;
-}
-
 .zoomlevel {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--faint);
-  min-width: 44px;
+  min-width: 38px;
   text-align: center;
+}
+
+/* A visually-joined cluster of icon buttons (zoom −/%/+, fit width/page) —
+   reads as one control instead of three loose buttons. */
+.segmented {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--faint);
+}
+
+.segmented button:hover:not(:disabled) {
+  background: #16233c;
+  color: var(--text);
+}
+
+.segmented button + button,
+.segmented .zoomlevel {
+  border-left: 1px solid var(--border);
 }
 
 .edittoolbar {
   display: flex;
-  gap: 6px;
-  padding: 8px 14px;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
+  overflow-x: auto;
 }
 
-.edittoolbar button {
-  padding: 6px 12px;
-  font-size: 12.5px;
+.toolgroup {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tooldivider {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 8px;
+  background: var(--border);
+  flex-shrink: 0;
 }
 
 .findbar {
@@ -360,6 +449,88 @@ button.big {
   padding: 4px 6px;
   width: 44px;
   text-align: center;
+}
+
+.viewer-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.sidebar {
+  width: 168px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+.sidebar-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sidebar-thumb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 90px;
+}
+
+.sidebar-thumb.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.sidebar-thumb img {
+  max-width: 100%;
+  max-height: 130px;
+  background: #fff;
+}
+
+.sidebar-thumb-placeholder {
+  width: 80%;
+  height: 90px;
+  background: #1c2942;
+  border-radius: 3px;
+}
+
+.sidebar-thumb-num {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: #333;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 4px;
+  padding: 0 4px;
 }
 
 .pdfjs-outer {
