@@ -153,6 +153,11 @@ button.ghost {
 .overlay {
   position: fixed;
   inset: 0;
+  /* pdf.js's own floating editor UI (resize handles, alt-text/delete
+     buttons on a selected Stamp/Ink/FreeText editor) uses z-index up to
+     100001 — any of our modals must clear that or its buttons visually
+     float on top of (and intercept clicks/drags meant for) our dialog. */
+  z-index: 100010;
   background: rgba(4, 8, 16, 0.65);
   display: flex;
   align-items: center;
@@ -465,6 +470,40 @@ button.big {
   border-radius: 8px;
   padding: 8px 12px;
   width: 90px;
+}
+
+/* ---------- stamp / signature dialog ---------- */
+
+.stampmodal {
+  max-width: 560px;
+  width: 92vw;
+}
+
+.signaturepad {
+  display: block;
+  width: 100%;
+  height: 200px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin: 10px 0;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.signaturepreview {
+  margin-top: 10px;
+  padding: 16px;
+  background: #fff;
+  color: #0b1220;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 32px;
+  text-align: center;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ---------- pages panel ---------- */

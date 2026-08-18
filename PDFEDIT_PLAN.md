@@ -160,7 +160,7 @@ entsprechend mehr Testzeit.
   neue Datei vorliegt, nicht eine alte gleichen Namens von einem
   früheren Testlauf — hat hier für eine ganze Verifikationsrunde eine
   falsche Fährte gelegt.
-- **v0.7.0 — Stempel & Signatur (eigener Dialog):** Ersetzt die in v0.4.0
+- **v0.7.0 — Stempel & Signatur ✅ (eigener Dialog):** Ersetzt die in v0.4.0
   entfernten kaputten pdf.js-Werkzeuge durch echte, selbst gebaute: Bild
   auswählen (Datei-Dialog) oder Unterschrift zeichnen/eingeben (Canvas/
   Schreibschrift-Font) → als Bild in eine neue Annotationsebene auf die
@@ -168,6 +168,34 @@ entsprechend mehr Testzeit.
   eingebacken. Bewusst *visuelle* Signatur, keine kryptografische PAdES —
   das bleibt laut Produktdefinition ein späteres, externes-Anbieter-Thema
   und wird im Dialog auch so benannt (keine falschen Versprechen).
+  Technisch über pdf.js' eigene (undokumentierte, aber stabile)
+  `AnnotationEditorLayer.pasteEditor(options, params)`-API gelöst: liefert
+  man ihr ein `bitmapFile` (unser erzeugtes PNG), erzeugt sie denselben
+  voll interaktiven Stempel-Editor (Greifpunkte, Alt-Text-Button) wie
+  pdf.js' eigene Werkzeuge — spart eine komplette Drag/Resize-Eigenbau-UI.
+  Alle drei Modi (Zeichnen, Eintippen, Bild) einzeln bis zum Byte-Level
+  verifiziert: platziert → gespeichert → Datei frisch neu geöffnet →
+  eingebrannter, nicht-interaktiver Stempel bestätigt, plus Struktur-Check
+  (`/Subtype /Image`-XObject im gespeicherten PDF vorhanden).
+  **Lektion 1 (Z-Index-Konflikt):** pdf.js' eigene schwebende Editor-UI
+  (Greifpunkte, Alt-Text-/Löschen-Button eines ausgewählten Editors) nutzt
+  Z-Index bis 100001 — eigene Modals müssen darüber liegen, sonst fangen
+  pdf.js' Buttons Klicks/Drags ab, die dem eigenen Dialog galten. Fix:
+  `.overlay { z-index: 100010; }` mit Kommentar im CSS.
+  **Lektion 2 (Canvas-Verifikation):** Ein erster Pixel-Check auf „nicht-
+  weiß" (`data[i] < 250`) zählte transparente Canvas-Pixel fälschlich als
+  „gezeichnet" mit, weil deren Alpha=0-Standard einen R-Wert von 0 liefert
+  — meldete 100 % „gezeichnete" Fläche auf einer leeren Canvas. Robuster
+  Check muss den Alpha-Kanal einbeziehen (`alpha>200 && rot<50` = echt
+  gezeichnet, `alpha===0` = transparenter Hintergrund).
+  **Lektion 3 (Test-Werkzeug-Grenze, keine App-Grenze):** Das synthetische
+  `left_click_drag` des Browser-Test-Tools erzeugt zu wenige echte
+  Pointermove-Zwischenereignisse, damit die eigene Zeichenlogik (die auf
+  kontinuierliches `pointermove` angewiesen ist, wie eine echte Maus es
+  liefert) einen Strich zieht — bestätigt durch direktes Dispatchen einer
+  vollständigen Pointer-Event-Sequenz per JS, die zuverlässig zeichnet.
+  Kein Bug im Produkt, nur eine Einschränkung des Testwerkzeugs bei
+  einzelnen, groben Drag-Gesten.
 - **v0.8.0 — Komprimierung:** Bild-Downsampling/Requalifizierung beim
   Speichern (Presets „schnell/ausgewogen/klein"), Dateigröße spürbar
   senken ohne Textqualität zu verlieren (nur eingebettete Bilder anfassen).

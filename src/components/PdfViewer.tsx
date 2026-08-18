@@ -11,6 +11,7 @@ import 'pdfjs-dist/web/pdf_viewer.css';
 import { PDFDocument as PdfLibDocument } from 'pdf-lib';
 import { t } from '../i18n';
 import PagesPanel from './PagesPanel';
+import StampDialog from './StampDialog';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
@@ -89,6 +90,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [showPages, setShowPages] = useState(false);
   const [hasFormFields, setHasFormFields] = useState(false);
   const [flattening, setFlattening] = useState(false);
+  const [showStamp, setShowStamp] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -336,6 +338,34 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  // Placement, moving and resizing is pdf.js's own Stamp editor — we only
+  // supply the image. `pasteEditor` lives on the PAGE's AnnotationEditorLayer
+  // instance (reached through the page view's builder wrapper), not on the
+  // top-level PDFViewer; it isn't part of the public d.ts, hence the casts.
+  const placeStamp = async (file: File) => {
+    setShowStamp(false);
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer) return;
+    try {
+      const pageIndex = pdfViewer.currentPageNumber - 1;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pageView = (pdfViewer as any)._pages?.[pageIndex];
+      const builder = pageView?.annotationEditorLayer;
+      const layer = builder?.annotationEditorLayer;
+      if (!layer) {
+        onError(t.stampError);
+        return;
+      }
+      await layer.pasteEditor({ mode: AnnotationEditorType.STAMP }, { bitmapFile: file });
+      if (!dirtyRef.current) {
+        dirtyRef.current = true;
+        onDirtyChange(true);
+      }
+    } catch (err) {
+      onError(`${t.stampError}: ${String(err)}`);
+    }
+  };
+
   return (
     <div className="viewer">
       <div className="toolbar">
@@ -388,6 +418,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             {t.tools[tl]}
           </button>
         ))}
+        <button onClick={() => setShowStamp(true)} disabled={!ready}>
+          {t.stampButton}
+        </button>
       </div>
 
       {showFind && (
@@ -436,6 +469,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           onError={onError}
         />
       )}
+
+      {showStamp && <StampDialog onPlace={placeStamp} onClose={() => setShowStamp(false)} />}
     </div>
   );
 });

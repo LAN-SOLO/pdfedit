@@ -47,6 +47,18 @@ const de = {
   flattenHint:
     'Ausgefüllte Werte dauerhaft in die Seite einbrennen — danach nicht mehr als Formular bearbeitbar, sieht aber in jedem Viewer korrekt aus.',
   flattenError: 'Flach rechnen fehlgeschlagen',
+  stampButton: 'Stempel',
+  stampTitle: 'Bild oder Unterschrift einfügen',
+  stampDraw: 'Zeichnen',
+  stampType: 'Eintippen',
+  stampImage: 'Bild',
+  stampClear: 'Löschen',
+  stampTypePlaceholder: 'Name eingeben …',
+  stampPickImage: 'Bild wählen …',
+  stampPlace: 'Einfügen',
+  stampError: 'Einfügen fehlgeschlagen',
+  stampSignatureHint:
+    'Das ist eine Bild-Unterschrift zur Kennzeichnung, keine kryptografisch geprüfte Signatur.',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -124,6 +136,18 @@ const en: typeof de = {
   flattenHint:
     'Burn the filled-in values permanently into the page — no longer editable as a form afterward, but looks correct in every viewer.',
   flattenError: 'Flatten failed',
+  stampButton: 'Stamp',
+  stampTitle: 'Insert image or signature',
+  stampDraw: 'Draw',
+  stampType: 'Type',
+  stampImage: 'Image',
+  stampClear: 'Clear',
+  stampTypePlaceholder: 'Type a name …',
+  stampPickImage: 'Choose image …',
+  stampPlace: 'Insert',
+  stampError: 'Insert failed',
+  stampSignatureHint:
+    'This is an image-based signature for identification, not a cryptographically verified one.',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',
