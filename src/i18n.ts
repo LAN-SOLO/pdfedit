@@ -89,6 +89,23 @@ const de = {
   redactCleanMetadata: 'Metadaten auch bereinigen (Autor, Titel, Thema, Stichwörter, Ersteller-Programm)',
   redactError: 'Schwärzen fehlgeschlagen',
   redactMarksLostWarning: 'Nicht angewendete Schwärzungs-Markierungen wurden beim Tab-Wechsel verworfen.',
+  ocrButton: 'OCR',
+  ocrTitle: 'Text erkennen (OCR)',
+  ocrScope: 'Bereich',
+  ocrScopeAll: (n: number) => `Alle ${n} Seiten`,
+  ocrScopeCurrent: (n: number) => `Nur Seite ${n}`,
+  ocrLanguages: 'Sprachen',
+  ocrLangDe: 'Deutsch',
+  ocrLangEn: 'Englisch',
+  ocrHint:
+    'Legt eine unsichtbare, durchsuchbare Textebene über gescannte Seiten — läuft vollständig lokal auf diesem Gerät, ohne Internetverbindung. Kann je nach Seitenzahl einige Sekunden bis Minuten dauern.',
+  ocrStart: 'Erkennung starten',
+  ocrRunning: 'Läuft …',
+  ocrRendering: 'Bereite Seite vor …',
+  ocrRecognizing: 'Erkenne Text …',
+  ocrResult: (pages: number, words: number) =>
+    pages === 1 ? `1 Seite verarbeitet, ${words} Wörter erkannt.` : `${pages} Seiten verarbeitet, ${words} Wörter erkannt.`,
+  ocrError: 'Texterkennung fehlgeschlagen',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -209,6 +226,23 @@ const en: typeof de = {
   redactCleanMetadata: 'Also clean metadata (author, title, subject, keywords, producer)',
   redactError: 'Redaction failed',
   redactMarksLostWarning: 'Unapplied redaction marks were discarded when the tab changed.',
+  ocrButton: 'OCR',
+  ocrTitle: 'Recognize text (OCR)',
+  ocrScope: 'Scope',
+  ocrScopeAll: (n: number) => `All ${n} pages`,
+  ocrScopeCurrent: (n: number) => `Page ${n} only`,
+  ocrLanguages: 'Languages',
+  ocrLangDe: 'German',
+  ocrLangEn: 'English',
+  ocrHint:
+    'Lays an invisible, searchable text layer over scanned pages — runs fully locally on this device, no internet connection needed. Can take a few seconds to minutes depending on page count.',
+  ocrStart: 'Start recognition',
+  ocrRunning: 'Running …',
+  ocrRendering: 'Preparing page …',
+  ocrRecognizing: 'Recognizing text …',
+  ocrResult: (pages: number, words: number) =>
+    pages === 1 ? `1 page processed, ${words} words recognized.` : `${pages} pages processed, ${words} words recognized.`,
+  ocrError: 'Text recognition failed',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',

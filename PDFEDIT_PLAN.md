@@ -284,11 +284,45 @@ entsprechend mehr Testzeit.
   dort horizontal statt zu brechen. Nebenbei: veralteten Beta-Text auf
   dem Startbildschirm korrigiert (nannte Formulare/Signieren/Bearbeitung
   noch als „kommend", obwohl seit v0.6.0–v0.9.0 bereits ausgeliefert).
-- **v0.10.0 — OCR (inked):** `tesseract.js` (WASM, lokal, kein Netzwerk)
-  legt eine unsichtbare, durchsuchbare Textebene über gescannte Seiten.
-  Start mit Deutsch + Englisch, weitere Sprachpakete nachladbar. Größter
-  Einzel-Brocken bisher (WASM-Worker-Integration, Sprachdaten-Bundling in
-  Tauri) — entsprechend mehr Testzeit einplanen.
+- **v0.10.0 — OCR ✅ (inked):** `tesseract.js` 7.0.0, komplett lokal — Worker-
+  Skript, WASM-Core (nur die LSTM-Varianten: Basis, SIMD, RelaxedSIMD;
+  die Nicht-LSTM-Legacy-Varianten werden nicht gebraucht, da
+  `tessdata_fast` reine LSTM-Trainingsdaten sind) und die Sprachdaten für
+  Deutsch/Englisch (`tesseract-ocr/tessdata_fast`, ~5,5 MB zusammen)
+  liegen als statische Assets unter `public/tessdata/` (~28 MB Gesamt-
+  paket) — standardmäßig lädt tesseract.js alle drei von einem jsDelivr-
+  CDN, das haben wir über `workerPath`/`corePath`/`langPath` + `gzip:
+  false` explizit auf die lokalen Pfade umgebogen. Dafür musste die CSP
+  in `tauri.conf.json` um `script-src 'self' 'wasm-unsafe-eval'` ergänzt
+  werden (WebAssembly-Kompilierung braucht dieses Schlüsselwort, getrennt
+  von und schwächer als `'unsafe-eval'`).
+  Der eigentliche OCR-Dialog: Bereich (aktuelle Seite/alle Seiten) +
+  Sprachauswahl, läuft Seite für Seite (rendert via pdf.js wie beim
+  Schwärzen, erkennt Text via tesseract.js, legt pro erkanntem Wort einen
+  unsichtbaren Textblock exakt an dessen Position). Technisch spannendster
+  Teil: pdf-lib kennt keine „unsichtbarer Text"-Option in `drawText()` —
+  das ist der PDF-native Text-Rendering-Modus 3 (`Tr`-Operator), den es
+  nur als Low-Level-Operator-Baustein gibt (`page.pushOperators
+  (setTextRenderingMode(TextRenderingMode.Invisible))` vor den
+  `drawText()`-Aufrufen). Zusätzlich wird pro Wort die Schriftgröße aus
+  der erkannten Bounding-Box-Höhe abgeleitet und die Breite per
+  `Tz`-Operator (`setCharacterSqueeze`) auf die exakt gemessene
+  Bounding-Box-Breite gestaucht/gestreckt — sonst passen Auswahlrahmen
+  beim Markieren nicht zum sichtbaren Wort, obwohl der Text stimmt.
+  Bis zum Byte-Level verifiziert: erkannter Text exakt wortgleich mit
+  einem synthetisch erzeugten „Scan" (Text als Rasterbild ohne echte
+  Textebene, vorher 0 Text-Items bestätigt), `getTextContent()` nach OCR
+  liefert den vollständigen Text, Content-Stream nach Dekomprimierung
+  bestätigt den `3 Tr`-Operator direkt vor den Wort-Objekten, frisches
+  Neu-Rendering der gespeicherten Datei zeigt keine sichtbaren Artefakte
+  (Text bleibt echt unsichtbar, keine doppelte Darstellung).
+  **Lektion:** Größter Einzel-Brocken wie erwartet — aber die eigentliche
+  Schwierigkeit lag nicht bei WASM/Worker-Integration (die lief nach der
+  Recherche zu den lokalen Pfaden im ersten Anlauf durch), sondern bei
+  der PDF-nativen Unsichtbar-Text-Konvention (Tr 3 statt Opacity 0, plus
+  Tz-Streckung für Positionstreue) — genau der Teil, der beim
+  oberflächlichen Testen (nur „wird Text gefunden?") unauffällig geblieben
+  wäre, aber bei einem Byte-Level-Check sofort aufgefallen ist.
 - **v0.11.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das

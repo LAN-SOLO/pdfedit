@@ -17,6 +17,8 @@ import { compressPdf, type CompressPreset } from '../compress';
 import RedactConfirmDialog from './RedactConfirmDialog';
 import { redactPdf, type RedactMark } from '../redact';
 import Sidebar from './Sidebar';
+import OcrDialog, { type OcrScope } from './OcrDialog';
+import { ocrPdf, type OcrLang, type OcrProgress } from '../ocr';
 import {
   IconSelect,
   IconHighlight,
@@ -34,6 +36,7 @@ import {
   IconFitWidth,
   IconFitPage,
   IconSidebar,
+  IconOcr,
 } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -132,6 +135,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [redactBusy, setRedactBusy] = useState(false);
   const marksRef = useRef<PlacedMark[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showOcr, setShowOcr] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null);
+  const [ocrResult, setOcrResult] = useState<{ pagesOcred: number; wordsFound: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -560,6 +566,29 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  const doOcr = async (scope: OcrScope, langs: OcrLang[]) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument || langs.length === 0) return;
+    setOcrResult(null);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const pageIndices =
+        scope === 'all'
+          ? Array.from({ length: pdfViewer.pagesCount }, (_, i) => i)
+          : [pdfViewer.currentPageNumber - 1];
+      const { bytes: ocred, pagesOcred, wordsFound } = await ocrPdf(bytes, pageIndices, langs, setOcrProgress);
+      setOcrProgress(null);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(ocred);
+      setOcrResult({ pagesOcred, wordsFound });
+    } catch (err) {
+      setOcrProgress(null);
+      onError(`${t.ocrError}: ${String(err)}`);
+    }
+  };
+
   // Placement, moving and resizing is pdf.js's own Stamp editor — we only
   // supply the image. `pasteEditor` lives on the PAGE's AnnotationEditorLayer
   // instance (reached through the page view's builder wrapper), not on the
@@ -697,6 +726,18 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             <IconCompress size={16} />
             {t.compressButton}
           </button>
+          <button
+            className="iconbtn"
+            onClick={() => {
+              setOcrResult(null);
+              setShowOcr(true);
+            }}
+            disabled={!ready}
+            title={t.ocrTitle}
+          >
+            <IconOcr size={16} />
+            {t.ocrButton}
+          </button>
         </div>
       </div>
 
@@ -782,6 +823,17 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           busy={redactBusy}
           onConfirm={doRedact}
           onCancel={() => setShowRedactConfirm(false)}
+        />
+      )}
+
+      {showOcr && (
+        <OcrDialog
+          currentPage={pageInfo.current}
+          totalPages={pageInfo.total}
+          progress={ocrProgress}
+          result={ocrResult}
+          onStart={doOcr}
+          onClose={() => setShowOcr(false)}
         />
       )}
     </div>

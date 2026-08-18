@@ -137,6 +137,13 @@ export const IconClose = ({ size = 18 }: Props) => (
   </svg>
 );
 
+export const IconOcr = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <path d="M6 8.5h8M6 11h8M6 13.5h5" />
+    <path d="M2.5 6.5V4.5a1 1 0 0 1 1-1h2M14.5 3.5h2a1 1 0 0 1 1 1v2M17.5 13.5v2a1 1 0 0 1-1 1h-2M5.5 16.5h-2a1 1 0 0 1-1-1v-2" />
+  </svg>
+);
+
 export const IconChevronLeft = ({ size = 18 }: Props) => (
   <svg width={size} height={size} {...base}>
     <path d="M12 4l-6 6 6 6" />
