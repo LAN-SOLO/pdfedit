@@ -59,6 +59,18 @@ const de = {
   stampError: 'Einfügen fehlgeschlagen',
   stampSignatureHint:
     'Das ist eine Bild-Unterschrift zur Kennzeichnung, keine kryptografisch geprüfte Signatur.',
+  compressButton: 'Komprimieren',
+  compressTitle: 'Dateigröße verringern',
+  compressPreset: { fast: 'Schnell', balanced: 'Ausgewogen', small: 'Klein' } as Record<
+    'fast' | 'balanced' | 'small',
+    string
+  >,
+  compressing: 'Komprimiere …',
+  compressResult: (before: string, after: string) => `${before} → ${after} — fertig.`,
+  compressNone: 'Keine passenden Bilder gefunden — nichts zu tun.',
+  compressHint:
+    'Verkleinert eingebettete JPEG-Bilder (Fotos, Scans). Text und Vektorgrafik bleiben unverändert. Kann Bildqualität sichtbar reduzieren — je nach Stufe.',
+  compressError: 'Komprimieren fehlgeschlagen',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -148,6 +160,18 @@ const en: typeof de = {
   stampError: 'Insert failed',
   stampSignatureHint:
     'This is an image-based signature for identification, not a cryptographically verified one.',
+  compressButton: 'Compress',
+  compressTitle: 'Reduce file size',
+  compressPreset: { fast: 'Fast', balanced: 'Balanced', small: 'Small' } as Record<
+    'fast' | 'balanced' | 'small',
+    string
+  >,
+  compressing: 'Compressing …',
+  compressResult: (before: string, after: string) => `${before} → ${after} — done.`,
+  compressNone: 'No matching images found — nothing to do.',
+  compressHint:
+    'Shrinks embedded JPEG images (photos, scans). Text and vector graphics stay unchanged. Can visibly reduce image quality, depending on the level.',
+  compressError: 'Compression failed',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',

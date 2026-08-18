@@ -196,9 +196,38 @@ entsprechend mehr Testzeit.
   vollständigen Pointer-Event-Sequenz per JS, die zuverlässig zeichnet.
   Kein Bug im Produkt, nur eine Einschränkung des Testwerkzeugs bei
   einzelnen, groben Drag-Gesten.
-- **v0.8.0 — Komprimierung:** Bild-Downsampling/Requalifizierung beim
-  Speichern (Presets „schnell/ausgewogen/klein"), Dateigröße spürbar
-  senken ohne Textqualität zu verlieren (nur eingebettete Bilder anfassen).
+- **v0.8.0 — Komprimierung ✅:** Eigener Dialog mit drei Presets
+  (schnell/ausgewogen/klein = Skalierung 85/65/45 % + JPEG-Qualität
+  82/72/55 %). Bewusst auf eingebettete Plain-JPEGs (`/Filter /DCTDecode`,
+  kein Filter-Array) beschränkt — der mit Abstand häufigste Platzfresser
+  in echten PDFs (Scans, Fotos). Roh-Sample-Bitmaps (FlateDecode-Pixel),
+  JPEG2000, CCITT-Fax und mehrfach gefilterte Streams bleiben unangetastet,
+  statt eine schwer verifizierbare verlustbehaftete Pixel-Rekonstruktion
+  für diese Fälle zu riskieren. Technisch: pdf-lib low-level (`PDFRawStream`,
+  `context.assign`) ersetzt den Bild-XObject-Stream in-place am selben Ref —
+  jede Seite, die dasselbe (geteilte) Bild referenziert, sieht automatisch
+  die neue Version. Dekodieren/Neukodieren läuft über die Browser-eigene
+  Canvas-Pipeline (`createImageBitmap` → `canvas.drawImage` → `toBlob`),
+  keine externe Bildbibliothek nötig. Nur wenn das Ergebnis wirklich
+  kleiner ist als das Original wird ersetzt (einzelne Bilder still
+  übersprungen, sonst nichts).
+  Verifiziert bis zum Byte-Level: Dict-Werte (`/Width`, `/Height`,
+  `/ColorSpace`, `/Filter`) nach der Kompression exakt wie erwartet
+  (inkl. zweimal hintereinander angewendeter Presets — 1024→666→300 px,
+  exakte erwartete Rundung beider Skalierungsfaktoren), der eingebettete
+  JPEG-Stream selbst per `createImageBitmap` echt dekodiert und auf die
+  richtige Pixelgröße geprüft (kein korrupter Stream), „keine Bilder
+  gefunden"-Pfad an einem reinen Text-PDF bestätigt (Dokument bleibt
+  unverändert, nicht dirty).
+  **Lektion:** Der Browser-„Speichern"-Download (`<a download>` auf eine
+  Blob-URL) ist beim automatisierten Testen unzuverlässig, sobald die
+  Browser-Erweiterung selbst kurz die Verbindung verliert (reisst dabei
+  auch den React-App-Zustand komplett zurück auf die Startseite — kein
+  Bug im Produkt, die Erweiterung trennt/lädt dabei die Seite neu).
+  Robuster Verifikationsweg: `URL.createObjectURL` im Seitenkontext
+  kurzzeitig abfangen und die tatsächlich gespeicherten Bytes direkt
+  auslesen, statt auf die Ankunft einer Datei im Downloads-Ordner zu
+  warten.
 - **v0.9.0 — Schwärzen (inked):** Bereich markieren → Seite an der Stelle
   wirklich rastern (Inhalt darunter entfernt, nicht nur überdeckt) +
   Bestätigungsdialog (irreversibel) + Metadaten-Reinigung (Autor/Titel/

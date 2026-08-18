@@ -12,18 +12,17 @@ import { PDFDocument as PdfLibDocument } from 'pdf-lib';
 import { t } from '../i18n';
 import PagesPanel from './PagesPanel';
 import StampDialog from './StampDialog';
+import CompressDialog from './CompressDialog';
+import { compressPdf, type CompressPreset } from '../compress';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 
 const { AnnotationEditorType, AnnotationMode } = pdfjsLib;
 
-// Stamp and Signature are deliberately left out: pdf.js's built-in editors
-// for both expect the full Firefox-viewer chrome (an image file picker
-// wired to a toolbar button, a draw/type/upload signature dialog) that we
-// don't have here. Selecting either tool "works" in the sense that it
-// doesn't crash, but clicking the page to place one silently does nothing —
-// worse than not offering it. They'll come back once we build a proper
-// in-app dialog for each (tracked in PDFEDIT_PLAN.md).
+// Stamp/Signature aren't in this list: pdf.js's built-in editors for both
+// expect the full Firefox-viewer chrome we don't have. Placement for them
+// goes through our own dialog + pdf.js's pasteEditor() instead — see
+// placeStamp() and StampDialog.
 type Tool = 'select' | 'highlight' | 'freetext' | 'ink';
 
 const TOOL_MODE: Record<Tool, number> = {
@@ -91,6 +90,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [hasFormFields, setHasFormFields] = useState(false);
   const [flattening, setFlattening] = useState(false);
   const [showStamp, setShowStamp] = useState(false);
+  const [showCompress, setShowCompress] = useState(false);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -338,6 +338,24 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  const doCompress = async (preset: CompressPreset): Promise<{ before: number; after: number } | null> => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return null;
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const { bytes: compressed, imagesTouched } = await compressPdf(bytes, preset);
+      if (imagesTouched === 0) return null;
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(compressed);
+      return { before: bytes.length, after: compressed.length };
+    } catch (err) {
+      onError(`${t.compressError}: ${String(err)}`);
+      return null;
+    }
+  };
+
   // Placement, moving and resizing is pdf.js's own Stamp editor — we only
   // supply the image. `pasteEditor` lives on the PAGE's AnnotationEditorLayer
   // instance (reached through the page view's builder wrapper), not on the
@@ -407,6 +425,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             {flattening ? t.flattening : t.flatten}
           </button>
         )}
+        <button onClick={() => setShowCompress(true)} disabled={!ready}>
+          {t.compressButton}
+        </button>
         <button className="primary" onClick={doSave} disabled={saving || !ready}>
           {saving ? t.saving : t.save}
         </button>
@@ -471,6 +492,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       )}
 
       {showStamp && <StampDialog onPlace={placeStamp} onClose={() => setShowStamp(false)} />}
+
+      {showCompress && <CompressDialog onCompress={doCompress} onClose={() => setShowCompress(false)} />}
     </div>
   );
 });
