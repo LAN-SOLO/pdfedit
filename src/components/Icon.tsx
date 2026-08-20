@@ -144,6 +144,13 @@ export const IconOcr = ({ size = 18 }: Props) => (
   </svg>
 );
 
+export const IconEditRegion = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <rect x="3" y="3" width="14" height="14" rx="1.2" strokeDasharray="2.5 2.5" />
+    <path d="M8 12.5l6-6 1.5 1.5-6 6H8v-1.5z" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const IconChevronLeft = ({ size = 18 }: Props) => (
   <svg width={size} height={size} {...base}>
     <path d="M12 4l-6 6 6 6" />

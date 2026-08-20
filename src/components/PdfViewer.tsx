@@ -19,6 +19,8 @@ import { redactPdf, type RedactMark } from '../redact';
 import Sidebar from './Sidebar';
 import OcrDialog, { type OcrScope } from './OcrDialog';
 import { ocrPdf, type OcrLang, type OcrProgress } from '../ocr';
+import EditRegionDialog from './EditRegionDialog';
+import { applyRegionEdit, type EditContent, type EditRegion } from '../regionEdit';
 import {
   IconSelect,
   IconHighlight,
@@ -37,9 +39,12 @@ import {
   IconFitPage,
   IconSidebar,
   IconOcr,
+  IconEditRegion,
 } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(window as any).__debugPdfjs = pdfjsLib;
 
 const { AnnotationEditorType, AnnotationMode } = pdfjsLib;
 
@@ -138,6 +143,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [showOcr, setShowOcr] = useState(false);
   const [ocrProgress, setOcrProgress] = useState<OcrProgress | null>(null);
   const [ocrResult, setOcrResult] = useState<{ pagesOcred: number; wordsFound: number } | null>(null);
+  const [editingRegion, setEditingRegion] = useState(false);
+  const [pendingRegion, setPendingRegion] = useState<EditRegion | null>(null);
+  const [regionEditBusy, setRegionEditBusy] = useState(false);
+  const pendingRegionRef = useRef<EditRegion | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -150,6 +159,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     // silently misaligned redaction.
     setMarks([]);
     setRedacting(false);
+    setPendingRegion(null);
+    setEditingRegion(false);
 
     const eventBus = new EventBus();
     eventBusRef.current = eventBus;
@@ -267,13 +278,19 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     marksRef.current = marks;
   }, [marks]);
 
-  // Pending (unapplied) redaction marks live only in this component's
-  // state — unlike a drawn Ink stroke, they have no pdf.js editor object
-  // that checkpoint()/saveDocument() could preserve across an unmount
-  // (e.g. switching tabs). Rather than silently lose them, tell the user.
+  useEffect(() => {
+    pendingRegionRef.current = pendingRegion;
+  }, [pendingRegion]);
+
+  // Pending (unapplied) redaction marks / a just-marked edit region live
+  // only in this component's state — unlike a drawn Ink stroke, they have
+  // no pdf.js editor object that checkpoint()/saveDocument() could
+  // preserve across an unmount (e.g. switching tabs). Rather than silently
+  // lose them, tell the user.
   useEffect(() => {
     return () => {
       if (marksRef.current.length > 0) onError(t.redactMarksLostWarning);
+      if (pendingRegionRef.current) onError(t.editRegionLostWarning);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -383,6 +400,101 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     };
   }, [marks]);
 
+  // Same drag-to-mark mechanism as redaction, but single-shot: on release
+  // the region goes straight into `pendingRegion`, which opens the content
+  // picker dialog immediately rather than accumulating into a list.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!editingRegion || !container) return;
+
+    container.classList.add('redacting');
+
+    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
+      null;
+
+    const onDown = (e: PointerEvent) => {
+      const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
+      const el = document.createElement('div');
+      el.className = 'editregion-mark';
+      pageEl.appendChild(el);
+      drag = {
+        pageEl,
+        pageIndex: Number(pageEl.dataset.pageNumber) - 1,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        el,
+      };
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!drag) return;
+      const rect = drag.pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(drag.startX, curX);
+      const y = Math.min(drag.startY, curY);
+      const w = Math.abs(curX - drag.startX);
+      const h = Math.abs(curY - drag.startY);
+      Object.assign(drag.el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!drag) return;
+      const { pageEl, pageIndex, startX, startY, el } = drag;
+      drag = null;
+      el.remove();
+      const rect = pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(startX, curX);
+      const y = Math.min(startY, curY);
+      const w = Math.abs(curX - startX);
+      const h = Math.abs(curY - startY);
+      if (w < 6 || h < 6 || rect.width === 0 || rect.height === 0) return;
+      setPendingRegion({
+        pageIndex,
+        xPct: x / rect.width,
+        yPct: y / rect.height,
+        wPct: w / rect.width,
+        hPct: h / rect.height,
+      });
+    };
+
+    container.addEventListener('pointerdown', onDown);
+    container.addEventListener('pointermove', onMove);
+    container.addEventListener('pointerup', onUp);
+    return () => {
+      container.classList.remove('redacting');
+      container.removeEventListener('pointerdown', onDown);
+      container.removeEventListener('pointermove', onMove);
+      container.removeEventListener('pointerup', onUp);
+      drag?.el.remove();
+    };
+  }, [editingRegion]);
+
+  // Renders the pending region as an overlay while its content dialog is
+  // open, so the user can still see exactly which spot they marked.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !pendingRegion) return;
+    const pageEl = container.querySelector(`.page[data-page-number="${pendingRegion.pageIndex + 1}"]`);
+    if (!pageEl) return;
+    const el = document.createElement('div');
+    el.className = 'editregion-mark';
+    Object.assign(el.style, {
+      left: `${pendingRegion.xPct * 100}%`,
+      top: `${pendingRegion.yPct * 100}%`,
+      width: `${pendingRegion.wPct * 100}%`,
+      height: `${pendingRegion.hPct * 100}%`,
+    });
+    pageEl.appendChild(el);
+    return () => {
+      el.remove();
+    };
+  }, [pendingRegion]);
+
   // A stroke/text-box/etc. the user just created stays "live" in its editor
   // until something commits it — normally clicking the Select tool. Forcing
   // the mode to NONE does exactly that, so a pending edit is never lost to
@@ -447,6 +559,13 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
   const toggleRedact = () => {
     setRedacting((v) => !v);
+    setTool('select');
+    const pdfViewer = pdfViewerRef.current;
+    if (pdfViewer) pdfViewer.annotationEditorMode = { mode: AnnotationEditorType.NONE };
+  };
+
+  const toggleEditRegion = () => {
+    setEditingRegion((v) => !v);
     setTool('select');
     const pdfViewer = pdfViewerRef.current;
     if (pdfViewer) pdfViewer.annotationEditorMode = { mode: AnnotationEditorType.NONE };
@@ -563,6 +682,26 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onError(`${t.redactError}: ${String(err)}`);
     } finally {
       setRedactBusy(false);
+    }
+  };
+
+  const doApplyRegionEdit = async (content: EditContent) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument || !pendingRegion) return;
+    setRegionEditBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const edited = await applyRegionEdit(bytes, pendingRegion, content);
+      setPendingRegion(null);
+      setEditingRegion(false);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(edited);
+    } catch (err) {
+      onError(`${t.editRegionError}: ${String(err)}`);
+    } finally {
+      setRegionEditBusy(false);
     }
   };
 
@@ -707,6 +846,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             <IconRedact size={16} />
             {t.redactButton}
           </button>
+          <button
+            className={editingRegion ? 'iconbtn active' : 'iconbtn'}
+            onClick={toggleEditRegion}
+            disabled={!ready}
+            title={t.editRegionHint}
+          >
+            <IconEditRegion size={16} />
+            {t.editRegionButton}
+          </button>
         </div>
 
         <div className="tooldivider" />
@@ -823,6 +971,14 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           busy={redactBusy}
           onConfirm={doRedact}
           onCancel={() => setShowRedactConfirm(false)}
+        />
+      )}
+
+      {pendingRegion && (
+        <EditRegionDialog
+          busy={regionEditBusy}
+          onApply={doApplyRegionEdit}
+          onCancel={() => setPendingRegion(null)}
         />
       )}
 

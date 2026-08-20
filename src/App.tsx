@@ -6,6 +6,7 @@ import { api, isTauri, UpdateInfo } from './api';
 import { bytesToBase64, downloadBytes } from './bytes';
 import { t } from './i18n';
 import UpdateModal from './components/UpdateModal';
+import Help from './components/Help';
 import NewPdfModal, { CreatedPdf } from './components/NewPdfModal';
 import PdfViewer, { PdfViewerHandle } from './components/PdfViewer';
 
@@ -352,6 +353,7 @@ export default function App() {
         <UpdateModal info={update} onToast={toast} onClose={() => setShowUpdateModal(false)} />
       )}
 
+      <Help />
       {toastMsg && <div className={`toast${toastMsg.err ? ' error' : ''}`}>{toastMsg.msg}</div>}
     </div>
   );

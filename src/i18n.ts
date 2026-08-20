@@ -106,6 +106,17 @@ const de = {
   ocrResult: (pages: number, words: number) =>
     pages === 1 ? `1 Seite verarbeitet, ${words} Wörter erkannt.` : `${pages} Seiten verarbeitet, ${words} Wörter erkannt.`,
   ocrError: 'Texterkennung fehlgeschlagen',
+  editRegionButton: 'Bearbeiten',
+  editRegionHint:
+    'Bereich auf der Seite aufziehen, dann Ersatzinhalt wählen. Wichtig: Dabei wird die ganze Seite zu einem Bild — nur der neue Text/das neue Bild bleibt danach editierbar und durchsuchbar, der Rest der Seite nicht mehr. Kein Textumbruch, keine Vektorbearbeitung — für einfache Korrekturen gedacht, nicht für echtes Umschreiben.',
+  editRegionTitle: 'Bereich ersetzen',
+  editRegionText: 'Text',
+  editRegionImage: 'Bild',
+  editRegionTextPlaceholder: 'Ersatztext eingeben …',
+  editRegionApply: 'Ersetzen',
+  editRegionApplying: 'Wende an …',
+  editRegionError: 'Bearbeiten fehlgeschlagen',
+  editRegionLostWarning: 'Nicht abgeschlossene Bereichs-Bearbeitung wurde beim Tab-Wechsel verworfen.',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   unsavedQuitConfirm:
@@ -243,6 +254,17 @@ const en: typeof de = {
   ocrResult: (pages: number, words: number) =>
     pages === 1 ? `1 page processed, ${words} words recognized.` : `${pages} pages processed, ${words} words recognized.`,
   ocrError: 'Text recognition failed',
+  editRegionButton: 'Edit',
+  editRegionHint:
+    'Drag a box over the area, then pick replacement content. Note: this turns the whole page into an image — only the new text/image stays editable and searchable afterward, the rest of the page no longer is. No reflow, no vector editing — meant for simple corrections, not real rewriting.',
+  editRegionTitle: 'Replace area',
+  editRegionText: 'Text',
+  editRegionImage: 'Image',
+  editRegionTextPlaceholder: 'Type replacement text …',
+  editRegionApply: 'Replace',
+  editRegionApplying: 'Applying …',
+  editRegionError: 'Edit failed',
+  editRegionLostWarning: 'An unfinished area edit was discarded when the tab changed.',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',
