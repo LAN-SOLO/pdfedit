@@ -38,7 +38,8 @@ import {
 } from '../freetextFont';
 import { api, isTauri, type SystemFont } from '../api';
 import TextEditDialog, { type TextEditSpec } from './TextEditDialog';
-import { applyLineEdit } from '../textEdit';
+import { applyRunEdit } from '../textEdit';
+import { matchFont, parsePdfFontName, type FontMatch } from '../fontMatch';
 import {
   IconSelect,
   IconHighlight,
@@ -101,16 +102,24 @@ interface PlacedMark extends RedactMark {
   pageIndex: number;
 }
 
-/** A clicked text line waiting in the edit dialog. */
-interface PendingLineEdit {
+/** A clicked, uniformly-formatted text run waiting in the edit dialog. */
+interface PendingRunEdit {
   pageIndex: number;
-  xPct: number;
-  yPct: number;
-  wPct: number;
-  hPct: number;
-  text: string;
+  /** Baseline origin + width in PDF points (exact, from getTextContent). */
+  x: number;
+  baseline: number;
+  width: number;
   sizePt: number;
+  ascent: number;
+  descent: number;
+  text: string;
+  /** Sampled original text color / page background. */
+  colorHex: string;
   bg: [number, number, number];
+  detectedLabel: string | null;
+  match: FontMatch | null;
+  /** Marker box in viewport px (relative to the canvasWrapper). */
+  overlay: { left: number; top: number; width: number; height: number };
 }
 
 let nextMarkId = 1;
@@ -329,7 +338,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [protectBusy, setProtectBusy] = useState(false);
   // in-place line editing
   const [editingText, setEditingText] = useState(false);
-  const [pendingLineEdit, setPendingLineEdit] = useState<PendingLineEdit | null>(null);
+  const [pendingRunEdit, setPendingRunEdit] = useState<PendingRunEdit | null>(null);
   const [lineEditBusy, setLineEditBusy] = useState(false);
   // invisible watermark
   const [showWatermark, setShowWatermark] = useState(false);
@@ -368,7 +377,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setPlacingField(false);
     setSignPlacing(false);
     setEditingText(false);
-    setPendingLineEdit(null);
+    setPendingRunEdit(null);
     pendingSignReqRef.current = null;
     // editors don't survive a document swap — neither do their font tags
     freetextFontMapRef.current.clear();
@@ -650,7 +659,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
   const cssFontFamily = (choice: FreetextFontChoice): string => {
     if (choice.kind === 'standard') {
-      return choice.font === 'times' ? '"Times New Roman", Times, serif' : '"Courier New", Courier, monospace';
+      if (choice.font.startsWith('times')) return '"Times New Roman", Times, serif';
+      if (choice.font.startsWith('courier')) return '"Courier New", Courier, monospace';
+      return 'Helvetica, Arial, sans-serif';
     }
     if (choice.kind === 'system') return `"pdfedit-sys-${choice.name}"`;
     return 'Helvetica, Arial, sans-serif';
@@ -718,15 +729,23 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     recordFreetextEditors();
   };
 
-  // enumerate installed fonts the first time the Text tool (or the line
-  // editor's dialog) needs them
+  // enumerate installed fonts once, on first demand (Text tool or the run
+  // editor) — the promise is shared so the click handler can await it
+  const systemFontsPromiseRef = useRef<Promise<SystemFont[]> | null>(null);
+  const ensureSystemFonts = useCallback((): Promise<SystemFont[]> => {
+    if (!isTauri) {
+      setSystemFonts((v) => v ?? []);
+      return Promise.resolve([]);
+    }
+    if (!systemFontsPromiseRef.current) {
+      systemFontsPromiseRef.current = api.listSystemFonts().catch(() => [] as SystemFont[]);
+      void systemFontsPromiseRef.current.then(setSystemFonts);
+    }
+    return systemFontsPromiseRef.current;
+  }, []);
   useEffect(() => {
-    if ((tool !== 'freetext' && !pendingLineEdit) || systemFonts !== null || !isTauri) return;
-    api
-      .listSystemFonts()
-      .then(setSystemFonts)
-      .catch(() => setSystemFonts([]));
-  }, [tool, systemFonts, pendingLineEdit]);
+    if (tool === 'freetext' || editingText) void ensureSystemFonts();
+  }, [tool, editingText, ensureSystemFonts]);
 
   // a fresh text box only exists after the pointer is released — tag it
   // with the active font right away so the live preview is truthful
@@ -1130,110 +1149,222 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
-  // In-place text editing: with the mode active, a click on the page finds
-  // the text LINE under the cursor via pdf.js's text layer, samples the
-  // page background around it from the rendered canvas, and opens the edit
-  // dialog prefilled with the line's text and estimated size.
+  // In-place text editing: with the mode active, a click on the page is
+  // resolved through pdf.js's getTextContent — exact baselines, widths,
+  // sizes and the ORIGINAL font per text run. The clicked run (a stretch
+  // of uniform formatting) opens the dialog with its text, true point
+  // size, sampled text color and the matched replacement font preselected.
   useEffect(() => {
     const container = containerRef.current;
     if (!editingText || !container) return;
     container.classList.add('textediting');
 
-    const onClick = (e: MouseEvent) => {
-      const span = (e.target as HTMLElement).closest?.('.textLayer span') as HTMLElement | null;
-      if (!span || !span.textContent?.trim()) {
-        onError(t.textEditNoText);
-        return;
-      }
-      e.preventDefault();
-      e.stopPropagation();
-      const pageEl = span.closest('.page') as HTMLElement;
+    const handleClick = async (e: MouseEvent) => {
+      const pageEl = (e.target as HTMLElement).closest?.('.page') as HTMLElement | null;
+      const pdfViewer = pdfViewerRef.current;
+      if (!pageEl || !pdfViewer?.pdfDocument) return;
       const pageIndex = Number(pageEl.dataset.pageNumber) - 1;
-      // Measure against the CANVAS, not .page: the page element carries a
-      // border, so its box is offset/larger than the rendered PDF area —
-      // enough to land the replacement a line too low (seen in testing).
       const canvas = pageEl.querySelector('canvas');
-      const pageRect = (canvas ?? pageEl).getBoundingClientRect();
-      if (pageRect.width === 0 || pageRect.height === 0) return;
-      const target = span.getBoundingClientRect();
-      const cy = target.top + target.height / 2;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const viewport = (pdfViewer as any)._pages?.[pageIndex]?.viewport;
+      if (!canvas || !viewport) return;
+      const canvasRect = canvas.getBoundingClientRect();
+      if (canvasRect.width === 0) return;
 
-      const lineSpans = [...pageEl.querySelectorAll<HTMLElement>('.textLayer span')]
-        .filter((s) => {
-          if (!s.textContent?.trim()) return false;
-          const r = s.getBoundingClientRect();
-          if (r.width === 0 || r.height === 0) return false;
-          const c = r.top + r.height / 2;
-          return Math.abs(c - cy) < Math.max(r.height, target.height) * 0.5;
-        })
-        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
-      if (lineSpans.length === 0) {
+      // click → PDF points (viewport css px scale can differ from rect px)
+      const vs = viewport.width / canvasRect.width;
+      const [px, py] = viewport.convertToPdfPoint(
+        (e.clientX - canvasRect.left) * vs,
+        (e.clientY - canvasRect.top) * vs
+      );
+
+      const fontsPromise = ensureSystemFonts();
+      const page = await pdfViewer.pdfDocument.getPage(pageIndex + 1);
+      const tc = await page.getTextContent();
+
+      interface It {
+        str: string;
+        fontName: string;
+        tx: number;
+        ty: number;
+        w: number;
+        size: number;
+      }
+      const its: It[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const item of tc.items as any[]) {
+        if (!item.str || !item.width) continue;
+        const size =
+          Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 10;
+        its.push({
+          str: item.str,
+          fontName: item.fontName,
+          tx: item.transform[4],
+          ty: item.transform[5],
+          w: item.width,
+          size,
+        });
+      }
+
+      let hit = its.find(
+        (i) =>
+          px >= i.tx - 1 &&
+          px <= i.tx + i.w + 1 &&
+          py >= i.ty - i.size * 0.35 &&
+          py <= i.ty + i.size * 0.95
+      );
+      if (!hit) {
+        hit = its
+          .filter((i) => Math.abs(i.ty - py) < i.size)
+          .sort(
+            (a, b) => Math.abs(a.tx + a.w / 2 - px) - Math.abs(b.tx + b.w / 2 - px)
+          )[0];
+      }
+      if (!hit) {
         onError(t.textEditNoText);
         return;
       }
 
-      let left = Infinity;
-      let right = -Infinity;
-      let top = Infinity;
-      let bottom = -Infinity;
-      let text = '';
-      let prevRight: number | null = null;
-      for (const s of lineSpans) {
-        const r = s.getBoundingClientRect();
-        // pdf.js sometimes splits a line into runs without the space in
-        // between — reinsert one when there's a visible gap
-        if (prevRight !== null && r.left - prevRight > r.height * 0.25 && !text.endsWith(' ')) {
-          text += ' ';
+      // the line = same baseline; merge adjacent same-font items into runs
+      const line = its
+        .filter((i) => Math.abs(i.ty - hit!.ty) < 2)
+        .sort((a, b) => a.tx - b.tx);
+      interface Run {
+        items: It[];
+        fontName: string;
+        x0: number;
+        x1: number;
+      }
+      const runs: Run[] = [];
+      for (const it of line) {
+        const last = runs[runs.length - 1];
+        if (last && last.fontName === it.fontName && it.tx - last.x1 < hit.size * 0.6) {
+          last.items.push(it);
+          last.x1 = Math.max(last.x1, it.tx + it.w);
+        } else {
+          runs.push({ items: [it], fontName: it.fontName, x0: it.tx, x1: it.tx + it.w });
         }
-        text += s.textContent ?? '';
-        prevRight = r.right;
-        left = Math.min(left, r.left);
-        right = Math.max(right, r.right);
-        top = Math.min(top, r.top);
-        bottom = Math.max(bottom, r.bottom);
+      }
+      const run =
+        runs.find((r) => px >= r.x0 - 1 && px <= r.x1 + 1) ??
+        runs.reduce((a, b) =>
+          Math.abs((a.x0 + a.x1) / 2 - px) < Math.abs((b.x0 + b.x1) / 2 - px) ? a : b
+        );
+      const text = run.items.map((i) => i.str).join('');
+      if (!text.trim()) {
+        onError(t.textEditNoText);
+        return;
       }
 
+      // original font: PostScript name via commonObjs, metrics via styles
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const view = (pdfViewerRef.current as any)?._pages?.[pageIndex]?.pdfPage?.view as
-        | number[]
-        | undefined;
-      const pageHeightPt = view ? Math.abs(view[3] - view[1]) : 842;
-      const hPct = (bottom - top) / pageRect.height;
-      // pdf.js text-layer spans are sized to the font size — the line bbox
-      // height IS the point size (verified against a known 14pt sample)
-      const sizePt = Math.max(4, Math.round(hPct * pageHeightPt * 2) / 2);
-
-      let bg: [number, number, number] = [255, 255, 255];
-      const cctx = canvas?.getContext('2d', { willReadFrequently: true });
-      if (canvas && cctx) {
-        const sx = canvas.width / pageRect.width;
-        const sy = canvas.height / pageRect.height;
-        const samples: number[][] = [];
-        const probe = (px: number, py: number) => {
-          const cx = Math.min(canvas.width - 1, Math.max(0, Math.round((px - pageRect.left) * sx)));
-          const cyy = Math.min(canvas.height - 1, Math.max(0, Math.round((py - pageRect.top) * sy)));
-          const d = cctx.getImageData(cx, cyy, 1, 1).data;
-          samples.push([d[0], d[1], d[2]]);
-        };
-        for (const fx of [0.1, 0.5, 0.9]) {
-          probe(left + (right - left) * fx, top - 4);
-          probe(left + (right - left) * fx, bottom + 4);
-        }
-        samples.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
-        bg = samples[Math.floor(samples.length / 2)] as [number, number, number];
+      const style = (tc as any).styles?.[run.fontName];
+      let psName = '';
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fontObj = (page as any).commonObjs.get(run.fontName);
+        psName = fontObj?.name ?? '';
+      } catch {
+        // font not resolved yet — matching falls back to the css class
+      }
+      const detected = parsePdfFontName(psName, style?.fontFamily ?? 'sans-serif');
+      const systemFontsNow = await fontsPromise;
+      const match = matchFont(detected, systemFontsNow);
+      if (!match.label && match.choice.kind === 'standard') {
+        match.label = t.stdFontLabel(match.choice.font);
       }
 
-      setPendingLineEdit({
+      const sizePt = Math.round(run.items[0].size * 100) / 100;
+      const ascent = style?.ascent && style.ascent > 0 ? style.ascent : 0.9;
+      const descent = style?.descent && style.descent < 0 ? style.descent : -0.22;
+      const baseline = hit.ty;
+
+      // sample text color (darkest pixel) and background (majority shade)
+      // from the rendered canvas inside the run box
+      let colorHex = '#000000';
+      let bg: [number, number, number] = [255, 255, 255];
+      const cctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (cctx) {
+        const toCanvas = (pdfX: number, pdfY: number): [number, number] => {
+          const [vx, vy] = viewport.convertToViewportPoint(pdfX, pdfY);
+          return [
+            Math.min(canvas.width - 1, Math.max(0, Math.round((vx / viewport.width) * canvas.width))),
+            Math.min(canvas.height - 1, Math.max(0, Math.round((vy / viewport.height) * canvas.height))),
+          ];
+        };
+        const [cx0, cy0] = toCanvas(run.x0, baseline + ascent * sizePt);
+        const [cx1, cy1] = toCanvas(run.x1, baseline + descent * sizePt);
+        const xLo = Math.min(cx0, cx1);
+        const xHi = Math.max(cx0, cx1);
+        const yLo = Math.min(cy0, cy1);
+        const yHi = Math.max(cy0, cy1);
+        if (xHi > xLo && yHi > yLo) {
+          const img = cctx.getImageData(xLo, yLo, xHi - xLo, yHi - yLo).data;
+          let darkest = 765;
+          let darkestRgb: [number, number, number] = [0, 0, 0];
+          const counts = new Map<string, { n: number; rgb: [number, number, number] }>();
+          const stepX = Math.max(1, Math.floor((xHi - xLo) / 48));
+          const stepY = Math.max(1, Math.floor((yHi - yLo) / 16));
+          for (let y = 0; y < yHi - yLo; y += stepY) {
+            for (let x = 0; x < xHi - xLo; x += stepX) {
+              const o = (y * (xHi - xLo) + x) * 4;
+              const r = img[o];
+              const g = img[o + 1];
+              const b = img[o + 2];
+              const lum = r + g + b;
+              if (lum < darkest) {
+                darkest = lum;
+                darkestRgb = [r, g, b];
+              }
+              const key = `${r >> 4},${g >> 4},${b >> 4}`;
+              const c = counts.get(key);
+              if (c) c.n++;
+              else counts.set(key, { n: 1, rgb: [r, g, b] });
+            }
+          }
+          let best = 0;
+          for (const c of counts.values()) {
+            if (c.n > best) {
+              best = c.n;
+              bg = c.rgb;
+            }
+          }
+          const hx = (n: number) => n.toString(16).padStart(2, '0');
+          colorHex = `#${hx(darkestRgb[0])}${hx(darkestRgb[1])}${hx(darkestRgb[2])}`;
+        }
+      }
+
+      // marker box in viewport px for the overlay
+      const [ovx0, ovy0] = viewport.convertToViewportPoint(run.x0, baseline + ascent * sizePt);
+      const [ovx1, ovy1] = viewport.convertToViewportPoint(run.x1, baseline + descent * sizePt);
+
+      setPendingRunEdit({
         pageIndex,
-        xPct: (left - pageRect.left) / pageRect.width,
-        yPct: (top - pageRect.top) / pageRect.height,
-        wPct: (right - left) / pageRect.width,
-        hPct,
-        text,
+        x: run.x0,
+        baseline,
+        width: run.x1 - run.x0,
         sizePt,
+        ascent,
+        descent,
+        text,
+        colorHex,
         bg,
+        detectedLabel: detected.psName || null,
+        match,
+        overlay: {
+          left: Math.min(ovx0, ovx1),
+          top: Math.min(ovy0, ovy1),
+          width: Math.abs(ovx1 - ovx0),
+          height: Math.abs(ovy1 - ovy0),
+        },
       });
       setEditingText(false);
+    };
+
+    const onClick = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      void handleClick(e).catch((err) => onError(`${t.textEditError}: ${String(err)}`));
     };
 
     container.addEventListener('click', onClick, true);
@@ -1241,34 +1372,34 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       container.classList.remove('textediting');
       container.removeEventListener('click', onClick, true);
     };
-  }, [editingText, onError]);
+  }, [editingText, onError, ensureSystemFonts]);
 
-  // keep the picked line visible while its dialog is open
+  // keep the picked run visible while its dialog is open
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !pendingLineEdit) return;
-    const pageEl = container.querySelector(`.page[data-page-number="${pendingLineEdit.pageIndex + 1}"]`);
+    if (!container || !pendingRunEdit) return;
+    const pageEl = container.querySelector(`.page[data-page-number="${pendingRunEdit.pageIndex + 1}"]`);
     if (!pageEl) return;
     const el = document.createElement('div');
     el.className = 'editregion-mark';
     Object.assign(el.style, {
-      left: `${pendingLineEdit.xPct * 100}%`,
-      top: `${pendingLineEdit.yPct * 100}%`,
-      width: `${pendingLineEdit.wPct * 100}%`,
-      height: `${pendingLineEdit.hPct * 100}%`,
+      left: `${pendingRunEdit.overlay.left - 2}px`,
+      top: `${pendingRunEdit.overlay.top - 2}px`,
+      width: `${pendingRunEdit.overlay.width + 4}px`,
+      height: `${pendingRunEdit.overlay.height + 4}px`,
     });
     pageAnchor(pageEl as HTMLElement).appendChild(el);
     return () => el.remove();
-  }, [pendingLineEdit]);
+  }, [pendingRunEdit]);
 
   const previewFontFamily = async (choice: FreetextFontChoice): Promise<string> => {
     if (choice.kind === 'system') await ensureFontFace(choice);
     return cssFontFamily(choice);
   };
 
-  const doApplyLineEdit = async (spec: TextEditSpec) => {
+  const doApplyRunEdit = async (spec: TextEditSpec) => {
     const pdfViewer = pdfViewerRef.current;
-    const pending = pendingLineEdit;
+    const pending = pendingRunEdit;
     if (!pdfViewer?.pdfDocument || !pending) return;
     setLineEditBusy(true);
     try {
@@ -1288,20 +1419,21 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         parseInt(hex.slice(2, 4), 16) || 0,
         parseInt(hex.slice(4, 6), 16) || 0,
       ];
-      const edited = await applyLineEdit(bytes, {
+      const edited = await applyRunEdit(bytes, {
         pageIndex: pending.pageIndex,
-        xPct: pending.xPct,
-        yPct: pending.yPct,
-        wPct: pending.wPct,
-        hPct: pending.hPct,
-        newText: spec.newText,
+        x: pending.x,
+        baseline: pending.baseline,
+        width: pending.width,
         sizePt: spec.sizePt,
+        ascent: pending.ascent,
+        descent: pending.descent,
+        newText: spec.newText,
         color,
         bg: pending.bg,
         choice: spec.choice,
         fontBytes,
       });
-      setPendingLineEdit(null);
+      setPendingRunEdit(null);
       dirtyRef.current = true;
       onDirtyChange(true);
       onReplace(edited);
@@ -1854,15 +1986,18 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         />
       )}
 
-      {pendingLineEdit && (
+      {pendingRunEdit && (
         <TextEditDialog
-          initialText={pendingLineEdit.text}
-          initialSizePt={pendingLineEdit.sizePt}
+          initialText={pendingRunEdit.text}
+          initialSizePt={pendingRunEdit.sizePt}
+          initialColorHex={pendingRunEdit.colorHex}
+          detectedLabel={pendingRunEdit.detectedLabel}
+          match={pendingRunEdit.match}
           systemFonts={systemFonts}
           busy={lineEditBusy}
           onPreviewFont={previewFontFamily}
-          onApply={doApplyLineEdit}
-          onCancel={() => setPendingLineEdit(null)}
+          onApply={doApplyRunEdit}
+          onCancel={() => setPendingRunEdit(null)}
         />
       )}
 

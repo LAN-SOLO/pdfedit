@@ -55,14 +55,97 @@ async fn write_pdf(path: String, data_b64: String) -> Result<(), String> {
 
 #[derive(Serialize)]
 pub struct SystemFontDto {
+    /// Display name (full name from the name table, falls back to the stem).
     pub name: String,
+    /// Family name ("Arial") — empty when the name table couldn't be read.
+    pub family: String,
+    /// Subfamily/style ("Bold", "Italic", "Bold Italic", "Regular", …).
+    pub style: String,
     pub path: String,
+}
+
+/// Reads family (nameID 1), subfamily (2) and full name (4) from a
+/// TTF/OTF `name` table. Enough for the text editor's font matching —
+/// three strings don't justify a font crate.
+fn parse_font_names(bytes: &[u8]) -> Option<(String, String, String)> {
+    let u16at = |o: usize| -> Option<u16> {
+        bytes.get(o..o + 2).map(|b| u16::from_be_bytes([b[0], b[1]]))
+    };
+    let u32at = |o: usize| -> Option<u32> {
+        bytes
+            .get(o..o + 4)
+            .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
+    };
+    let magic = u32at(0)?;
+    if magic != 0x0001_0000
+        && magic != u32::from_be_bytes(*b"OTTO")
+        && magic != u32::from_be_bytes(*b"true")
+    {
+        return None;
+    }
+    let num_tables = u16at(4)? as usize;
+    let mut name_off = None;
+    for i in 0..num_tables {
+        let rec = 12 + i * 16;
+        if bytes.get(rec..rec + 4)? == b"name" {
+            name_off = Some(u32at(rec + 8)? as usize);
+            break;
+        }
+    }
+    let base = name_off?;
+    let count = u16at(base + 2)? as usize;
+    let string_off = base + u16at(base + 4)? as usize;
+    let mut family: Option<String> = None;
+    let mut sub: Option<String> = None;
+    let mut full: Option<String> = None;
+    for i in 0..count {
+        let rec = base + 6 + i * 12;
+        let platform = u16at(rec)?;
+        let name_id = u16at(rec + 6)?;
+        if !matches!(name_id, 1 | 2 | 4) {
+            continue;
+        }
+        let len = u16at(rec + 8)? as usize;
+        let off = string_off + u16at(rec + 10)? as usize;
+        let Some(raw) = bytes.get(off..off + len) else {
+            continue;
+        };
+        // Windows/Unicode entries are UTF-16BE, Mac entries ~ASCII.
+        let text = if platform == 3 || platform == 0 {
+            let units: Vec<u16> = raw
+                .chunks_exact(2)
+                .map(|c| u16::from_be_bytes([c[0], c[1]]))
+                .collect();
+            String::from_utf16_lossy(&units)
+        } else {
+            raw.iter().map(|&b| b as char).collect()
+        };
+        let text = text.trim().to_string();
+        if text.is_empty() {
+            continue;
+        }
+        let slot = match name_id {
+            1 => &mut family,
+            2 => &mut sub,
+            _ => &mut full,
+        };
+        // Windows entries win over Mac ones read earlier
+        if slot.is_none() || platform == 3 {
+            *slot = Some(text);
+        }
+    }
+    Some((
+        family.unwrap_or_default(),
+        sub.unwrap_or_default(),
+        full.unwrap_or_default(),
+    ))
 }
 
 /// Enumerate installed system fonts (TTF/OTF only — TrueType collections
 /// and bitmap formats are skipped because the embedding pipeline in the
-/// frontend can't subset them). Names are the file stems; good enough to
-/// pick a font, without parsing every font's name table.
+/// frontend can't subset them). Reads real family/style names from each
+/// font's name table so the picker shows "Arial — Bold" instead of file
+/// stems, and so the text editor can match a document's original font.
 #[tauri::command]
 async fn list_system_fonts() -> Result<Vec<SystemFontDto>, String> {
     let mut dirs: Vec<std::path::PathBuf> = Vec::new();
@@ -131,9 +214,34 @@ fn collect_fonts(
         let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
             continue;
         };
-        if seen.insert(stem.to_lowercase()) {
+        // Only the first 64 KiB are needed for the name table in practice —
+        // avoids reading hundreds of full font files during enumeration.
+        let names = std::fs::File::open(&path)
+            .ok()
+            .and_then(|mut f| {
+                use std::io::Read;
+                let mut head = vec![0u8; 64 * 1024];
+                let n = f.read(&mut head).ok()?;
+                head.truncate(n);
+                parse_font_names(&head)
+            });
+        let (family, style, full) = names.unwrap_or_default();
+        let display = if !full.is_empty() {
+            full
+        } else if !family.is_empty() {
+            if style.is_empty() || style.eq_ignore_ascii_case("regular") {
+                family.clone()
+            } else {
+                format!("{family} {style}")
+            }
+        } else {
+            stem.to_string()
+        };
+        if seen.insert(display.to_lowercase()) {
             out.push(SystemFontDto {
-                name: stem.to_string(),
+                name: display,
+                family,
+                style,
                 path: path.to_string_lossy().to_string(),
             });
         }
@@ -211,4 +319,21 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running pdfedit");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn parses_real_font_names() {
+        for (path, want_family) in [
+            ("/System/Library/Fonts/Supplemental/Arial.ttf", "Arial"),
+            ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", "Arial"),
+        ] {
+            let Ok(bytes) = std::fs::read(path) else { continue };
+            let (family, style, full) = super::parse_font_names(&bytes).expect("parse");
+            assert_eq!(family, want_family, "family for {path}");
+            assert!(!full.is_empty(), "full name for {path}");
+            eprintln!("{path}: family={family} style={style} full={full}");
+        }
+    }
 }

@@ -287,9 +287,24 @@ const de = {
   textEditApply: 'Übernehmen',
   textEditApplying: 'Wende an …',
   textEditNote:
-    'Die Originalzeile wird mit der Hintergrundfarbe der Seite überdeckt und der neue Text als echter, durchsuchbarer Text daraufgesetzt. Ehrlich gesagt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen), und Schriftart/Laufweite des Originals werden nicht immer exakt getroffen.',
-  textEditNoText: 'An dieser Stelle wurde keine Textzeile gefunden — bitte direkt auf Text klicken.',
+    'Der Original-Abschnitt wird mit der Hintergrundfarbe der Seite überdeckt und der neue Text als echter, durchsuchbarer Text exakt an derselben Position gesetzt. Ehrlich gesagt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen).',
+  textEditNoText: 'An dieser Stelle wurde kein Text gefunden — bitte direkt auf Text klicken.',
   textEditError: 'Text ändern fehlgeschlagen',
+  textEditDetected: (font: string, size: number) => `Erkannt: ${font} · ${size} pt`,
+  textEditMatchExact: (name: string) => `Passende Schrift installiert: ${name}`,
+  textEditMatchFamily: (name: string) => `Nächster Treffer vorausgewählt: ${name}`,
+  textEditMatchFallback: (name: string) =>
+    `Originalschrift nicht installiert — Ersatz: ${name}. Laufweite kann leicht abweichen.`,
+  fontStandardGroup: 'Standardschriften',
+  stdFontLabel: (key: string) => {
+    const base = key.startsWith('times') ? 'Times' : key.startsWith('courier') ? 'Courier' : 'Helvetica';
+    const bold = key.includes('-b');
+    const italic = /-(o|i|bo|bi)$/.test(key);
+    if (bold && italic) return `${base} Fett Kursiv`;
+    if (bold) return `${base} Fett`;
+    if (italic) return `${base} Kursiv`;
+    return base;
+  },
 };
 
 const en: typeof de = {
@@ -577,9 +592,24 @@ const en: typeof de = {
   textEditApply: 'Apply',
   textEditApplying: 'Applying …',
   textEditNote:
-    'The original line is covered with the page background color and the new text is placed on top as real, searchable text. Honestly: the original remains invisibly in the file (remove for good: redaction), and the original typeface/letter spacing is not always matched exactly.',
-  textEditNoText: 'No text line found at this spot — please click directly on text.',
+    'The original run is covered with the page background color and the new text is placed at the exact same position as real, searchable text. Honestly: the original remains invisibly in the file (remove for good: redaction).',
+  textEditNoText: 'No text found at this spot — please click directly on text.',
   textEditError: 'Edit text failed',
+  textEditDetected: (font: string, size: number) => `Detected: ${font} · ${size} pt`,
+  textEditMatchExact: (name: string) => `Matching font installed: ${name}`,
+  textEditMatchFamily: (name: string) => `Closest match preselected: ${name}`,
+  textEditMatchFallback: (name: string) =>
+    `Original font not installed — substitute: ${name}. Letter spacing may differ slightly.`,
+  fontStandardGroup: 'Standard fonts',
+  stdFontLabel: (key: string) => {
+    const base = key.startsWith('times') ? 'Times' : key.startsWith('courier') ? 'Courier' : 'Helvetica';
+    const bold = key.includes('-b');
+    const italic = /-(o|i|bo|bi)$/.test(key);
+    if (bold && italic) return `${base} Bold Italic`;
+    if (bold) return `${base} Bold`;
+    if (italic) return `${base} Italic`;
+    return base;
+  },
 };
 
 export const t = navigator.language.toLowerCase().startsWith('de') ? de : en;

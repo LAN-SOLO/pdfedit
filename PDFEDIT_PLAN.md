@@ -447,6 +447,41 @@ entsprechend mehr Testzeit.
     veraltete Prebundles („doc.encrypt is not a function", obwohl Quelle
     korrekt). Regel: Bei Browser-E2E immer zuerst `lsof -iTCP:<port>`
     prüfen und vor Layer-Abfragen einen Screenshot machen.
+- **v0.11.3 — Formaterhaltendes Text-Editieren ✅ (das Killerfeature-
+  Fundament):** „Text ändern" arbeitet jetzt run-basiert statt zeilen-
+  basiert und erhält die Formatierung:
+  - **Erkennung über `getTextContent` statt DOM-Spans:** exakte Baseline,
+    Breite und Punktgröße pro Text-Item direkt aus dem Content-Stream;
+    der Klick trifft den einheitlich formatierten RUN (fettes Label und
+    regulärer Wert einer Zeile sind getrennt editierbar). Die
+    Originalschrift kommt als echter PostScript-Name über
+    `page.commonObjs.get(item.fontName).name` (z. B. „Helvetica-Bold",
+    „BAAAAA+TimesNewRomanPS-BoldMT"), Ascent/Descent aus `tc.styles`.
+  - **`fontMatch.ts`:** PS-Name → Familie + Fett/Kursiv (Subset-Präfix,
+    MT/PS-Suffixe, CamelCase-Spacing; „Roman" bewusst nicht gestrippt,
+    sonst wird „TimesNewRoman" zu „Times New"). Matching in drei Stufen:
+    exakt installiert → Familien-Treffer → Standard-Ersatz derselben
+    Klasse, inkl. Metrik-Zwillinge (Arial↔Helvetica, TimesNewRoman↔Times,
+    CourierNew↔Courier zählen als Familien-Treffer). Der Dialog sagt,
+    welche Stufe griff („Passende Schrift installiert" / „Nächster
+    Treffer" / „Ersatz — Laufweite kann abweichen").
+  - **Alle 12 Base-14-Schnitte** als Standard-Tier (`StdFontKey`),
+    Fett/Kursiv-Erkennung wählt automatisch den richtigen Schnitt vor
+    (verifiziert: Helvetica-Bold→„Helvetica Fett", -Oblique→„Kursiv").
+  - **Exakte Reproduktion:** Ersatz an der Original-Baseline mit
+    Originalgröße; Textfarbe wird aus den Canvas-Pixeln des Runs
+    gesampelt (dunkelster Wert), Hintergrund als Mehrheitsfarbe. Ist der
+    neue Text breiter als der Original-Run, wird die Laufweite per
+    `Tz`-Operator (setCharacterSqueeze, wie beim OCR-Layer) bis minimal
+    82 % verdichtet — byte-verifiziert: „Auftragsnummer" (96,1 pt natur)
+    landet auf 87,1 pt im 86,6-pt-Slot, Nachbar-Run-Position unverändert.
+  - **Rust liest echte Font-Namen:** eigener `name`-Table-Parser (Familie,
+    Schnitt, voller Name; 64-KiB-Head reicht) — das Font-Dropdown zeigt
+    „Arial — Bold" statt Datei-Stems mit Hash-Suffixen, und das Matching
+    bekommt saubere Familiennamen. Unit-Test gegen Apples Arial.ttf.
+  - **Lektion (Browser-E2E):** Das Tutorial-Overlay (SEEN_KEY-Bump!)
+    fängt nach jedem frischen Origin den ersten Klick ab — vor jedem
+    E2E-Lauf `.hlp-close` klicken.
 - **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das

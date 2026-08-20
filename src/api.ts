@@ -12,7 +12,12 @@ export interface UpdateInfo {
 
 /** An installed system font (TTF/OTF), as enumerated by the Rust side. */
 export interface SystemFont {
+  /** Display name (full name from the font's name table). */
   name: string;
+  /** Family ("Arial") — empty when the name table couldn't be read. */
+  family: string;
+  /** Style/subfamily ("Bold", "Italic", "Regular", …). */
+  style: string;
   path: string;
 }
 

@@ -23,9 +23,26 @@ import {
  *  (e.g. after editing the text in Acrobat), it falls back to the /DA font
  *  — documented in the manual. */
 
+/** The base-14 standard fonts in all their cuts — the fallback tier for
+ *  format-preserving text editing (Helvetica also stands in for Arial,
+ *  Times for Times New Roman, Courier for Courier New: metric twins). */
+export type StdFontKey =
+  | 'helv'
+  | 'helv-b'
+  | 'helv-o'
+  | 'helv-bo'
+  | 'times'
+  | 'times-b'
+  | 'times-i'
+  | 'times-bi'
+  | 'courier'
+  | 'courier-b'
+  | 'courier-o'
+  | 'courier-bo';
+
 export type FreetextFontChoice =
   | { kind: 'default' }
-  | { kind: 'standard'; font: 'times' | 'courier' }
+  | { kind: 'standard'; font: StdFontKey }
   | { kind: 'system'; name: string; path: string };
 
 /** One session-created FreeText annotation, as reported by pdf.js's
@@ -46,9 +63,19 @@ export interface FontApplication {
   fontBytes: Uint8Array | null;
 }
 
-const STANDARD: Record<'times' | 'courier', StandardFonts> = {
+const STANDARD: Record<StdFontKey, StandardFonts> = {
+  helv: StandardFonts.Helvetica,
+  'helv-b': StandardFonts.HelveticaBold,
+  'helv-o': StandardFonts.HelveticaOblique,
+  'helv-bo': StandardFonts.HelveticaBoldOblique,
   times: StandardFonts.TimesRoman,
+  'times-b': StandardFonts.TimesRomanBold,
+  'times-i': StandardFonts.TimesRomanItalic,
+  'times-bi': StandardFonts.TimesRomanBoldItalic,
   courier: StandardFonts.Courier,
+  'courier-b': StandardFonts.CourierBold,
+  'courier-o': StandardFonts.CourierOblique,
+  'courier-bo': StandardFonts.CourierBoldOblique,
 };
 
 const rectsMatch = (a: number[], b: [number, number, number, number]): boolean =>

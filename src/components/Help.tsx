@@ -94,7 +94,7 @@ const de: Content = {
     {
       title: 'Inhalte ändern',
       body: [
-        '• Text ändern — bestehende Textzeile anklicken: Tippfehler korrigieren, Farbe/Größe/Schrift ändern',
+        '• Text ändern — Text anklicken: Tippfehler korrigieren, Formatierung (Schrift, Fett/Kursiv, Größe, Farbe) wird erkannt und erhalten',
         '• Seiten per Drag & Drop in der Seitenleiste umsortieren',
         '• Schwärzen — jetzt wahlweise schwarz oder verpixelt',
         '• Wasserzeichen — unsichtbares PNG einbetten und prüfen: ausgetauschte Seiten fallen auf',
@@ -165,11 +165,12 @@ const de: Content = {
       id: 'textedit',
       title: 'Text ändern',
       body: [
-        '„Text ändern" korrigiert bestehenden Text direkt auf der Seite (bei digital erzeugten PDFs, nicht bei Scans — dafür erst OCR):',
-        '• Werkzeug aktivieren und die Textzeile anklicken',
-        '• Text korrigieren, Farbe (auch frei wählbar), Größe und Schrift festlegen',
-        'Der neue Text wird als echter, durchsuchbarer Text geschrieben; die Originalzeile wird mit der Hintergrundfarbe der Seite überdeckt.',
-        'Ehrlich benannt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen), und die exakte Schrift/Laufweite des Originals wird nicht immer getroffen. Echte Fließtext-Bearbeitung mit Umbruch ist der nächste große Meilenstein.',
+        '„Text ändern" korrigiert bestehenden Text direkt auf der Seite und ERHÄLT die Formatierung (bei digital erzeugten PDFs, nicht bei Scans — dafür erst OCR):',
+        '• Werkzeug aktivieren und den Text anklicken — bearbeitet wird genau der einheitlich formatierte Abschnitt (z. B. nur der fette Titel, nicht die ganze Zeile)',
+        '• pdfedit erkennt Originalschrift, Fett/Kursiv, exakte Größe und Textfarbe automatisch und wählt die passende installierte Schrift vor',
+        '• Ist die Originalschrift nicht installiert, steht im Dialog, welcher nächste Treffer bzw. Ersatz gewählt wurde (Arial↔Helvetica, Times New Roman↔Times, Courier New↔Courier sind metrisch austauschbar)',
+        '• Der Ersatz sitzt exakt auf der Original-Grundlinie; wird der neue Text breiter als der alte, verdichtet pdfedit die Laufweite automatisch leicht, statt in den Nachbartext zu laufen',
+        'Ehrlich benannt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen). Fließtext-Bearbeitung mit Umbruch über Zeilen hinweg ist der nächste große Meilenstein.',
       ],
     },
     {
@@ -383,7 +384,7 @@ const en: Content = {
     {
       title: 'Changing content',
       body: [
-        '• Edit text — click an existing text line: fix typos, change color/size/font',
+        '• Edit text — click text: fix typos while the formatting (font, bold/italic, size, color) is detected and preserved',
         '• Reorder pages by drag & drop in the sidebar',
         '• Redact — now solid black or pixelated',
         '• Watermark — embed and verify an invisible PNG: swapped pages stand out',
@@ -454,11 +455,12 @@ const en: Content = {
       id: 'textedit',
       title: 'Edit text',
       body: [
-        '"Edit text" corrects existing text right on the page (for born-digital PDFs, not scans — run OCR first for those):',
-        '• Activate the tool and click the text line',
-        '• Fix the text, pick a color (fully custom too), size and font',
-        'The new text is written as real, searchable text; the original line is covered with the page background color.',
-        'Honestly: the original remains invisibly in the file (remove for good: redaction), and the exact original typeface/spacing is not always matched. True reflow editing is the next big milestone.',
+        '"Edit text" corrects existing text right on the page and PRESERVES the formatting (for born-digital PDFs, not scans — run OCR first for those):',
+        '• Activate the tool and click the text — you edit exactly the uniformly formatted stretch (e.g. just the bold label, not the whole line)',
+        '• pdfedit detects the original font, bold/italic, exact size and text color automatically and preselects the matching installed font',
+        '• If the original font is not installed, the dialog says which closest match or substitute was chosen (Arial↔Helvetica, Times New Roman↔Times, Courier New↔Courier are metric twins)',
+        '• The replacement sits exactly on the original baseline; if the new text is wider than the old, pdfedit gently condenses the letter spacing instead of running into neighboring text',
+        'Honestly: the original remains invisibly in the file (remove for good: redaction). Reflow editing across lines is the next big milestone.',
       ],
     },
     {
