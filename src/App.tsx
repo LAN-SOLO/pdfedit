@@ -62,17 +62,42 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToastMsg(null), 4000);
   }, []);
 
+  // "Update verfügbar" soll nicht nur beim Start auftauchen, sondern auch,
+  // wenn das Release erst während der Sitzung auf GitHub eintrifft: der
+  // Check läuft daher zusätzlich alle 4 h und (gedrosselt) beim Fokus-
+  // wechsel. Der Dialog öffnet sich pro gefundener Version genau einmal
+  // von selbst — danach bleiben Badge, Tabbar-Button und Hilfe-Footer.
+  const offeredVersionRef = useRef<string | null>(null);
   useEffect(() => {
     getVersion()
       .then(setVersion)
       .catch(() => {});
-    api
-      .checkUpdate()
-      .then((u) => {
-        setUpdate(u);
-        if (u) setShowUpdateModal(true);
-      })
-      .catch(() => {});
+    const check = () => {
+      api
+        .checkUpdate()
+        .then((u) => {
+          setUpdate(u);
+          if (u && offeredVersionRef.current !== u.version) {
+            offeredVersionRef.current = u.version;
+            setShowUpdateModal(true);
+          }
+        })
+        .catch(() => {});
+    };
+    check();
+    const interval = window.setInterval(check, 4 * 60 * 60 * 1000);
+    let lastFocusCheck = Date.now();
+    const onFocus = () => {
+      if (Date.now() - lastFocusCheck > 30 * 60 * 1000) {
+        lastFocusCheck = Date.now();
+        check();
+      }
+    };
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
   }, []);
 
   // guard against quitting with unsaved edits anywhere

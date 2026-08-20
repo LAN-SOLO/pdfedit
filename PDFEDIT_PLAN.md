@@ -391,6 +391,62 @@ entsprechend mehr Testzeit.
     `doc.encrypt is not a function`, obwohl Quellcode und node_modules
     längst richtig waren. Bei „Modul-API fehlt im Browser, in Node aber
     da" zuerst `lsof -iTCP:<port>` prüfen, nicht den eigenen Code.
+- **v0.11.2 — Inhalte ändern: Textzeilen editieren, Systemschriften,
+  Wasserzeichen, Seiten-DnD, Blur-Schwärzen ✅:**
+  - **Text ändern (`textEdit.ts` + TextEditDialog):** Klick auf eine
+    bestehende Textzeile (Lokalisierung über pdf.js' Text-Layer, funktioniert
+    bei jedem digital erzeugten PDF) → Dialog mit vorbefülltem Zeilentext,
+    Schrift-/Größen-/Farbwahl (inkl. freiem Farbwähler). Original wird mit
+    der vom Canvas GESAMPELTEN Hintergrundfarbe überdeckt, Ersatz als echter
+    Text geschrieben (durchsuchbar, mit eingebetteter Wunschschrift).
+    Grenzen stehen im Dialog UND Handbuch (Original bleibt unsichtbar in der
+    Datei; Laufweite nicht immer exakt). Größenschätzung: Text-Layer-Spans
+    sind exakt fontgroß → Zeilen-BBox-Höhe ≈ Punktgröße (14pt-Probe: 14.5).
+  - **Systemschriften fürs Text-Werkzeug:** Rust-Kommandos
+    `list_system_fonts`/`read_font` (TTF/OTF, macOS/Windows/Linux-Pfade),
+    Live-Preview via FontFace; beim Speichern regeneriert
+    `freetextFont.ts` die FreeText-Appearance mit der via fontkit
+    eingebetteten Schrift (pdf.js selbst kennt keinen Font-Parameter).
+    **Lektion:** fontkits Subsetter crasht an manchen System-TTFs (Apples
+    Arial) — und zwar erst bei save(). Deshalb Subset-Probe in einem
+    Wegwerf-Dokument, Fallback Voll-Einbettung (`embedChosenFont`).
+  - **Unsichtbares Wasserzeichen (`watermark.ts`):** PNG mit Transparenz,
+    opacity 0 auf gewählte/alle Seiten + /LSWM-Seiteneintrag (SHA-256 des
+    PNG, Positionsindex, Zeitstempel). Prüfen-Tab meldet Seiten ohne
+    Marke (= möglicherweise ausgetauscht), Positionsabweichungen
+    (= umsortiert), gemischte Hashes und optional Abgleich gegen das
+    Original-PNG. Ehrlich beschriftet: Alltags-Manipulationserkennung,
+    kein Kryptobeweis. Byte-verifiziert: Austausch/Umsortierung/Fremd-PNG
+    werden alle erkannt, `/ca 0` bestätigt Unsichtbarkeit.
+  - **Seiten-DnD in der Seitenleiste (`pages.ts`):** Flacher /Kids-Reorder
+    in-place — Formularfelder überleben (byte-verifiziert), Fallback
+    copyPages bei verschachtelten Bäumen. **Lektion:** pdf-libs
+    removePage+insertPage mit derselben PDFPage korrumpiert den Seitenbaum
+    („kid reference points to wrong type") — Kids-Array direkt umsortieren.
+  - **Schwärzen mit Verpixeln:** Mosaik (runterskalieren + hochskalieren
+    ohne Smoothing, Blockgröße ≥16px im 3x-Raster) als Alternative zu
+    Schwarz; Warnung im Dialog, dass verpixelter Text rekonstruierbar sein
+    kann.
+  - **Laufende Update-Prüfung:** Check zusätzlich alle 4 h + beim
+    Fenster-Fokus (30-min-Drossel); Auto-Dialog genau einmal pro gefundener
+    Version, danach Badge/Tabbar/Hilfe-Footer. Löschen-Icon der
+    Editor-Toolbar: WKWebView-Fallback als selbstenthaltenes
+    background-image (Maske+light-dark() unangetastet, nur überstimmt).
+  - **Wichtiger Genauigkeits-Fix für ALLE Overlay-Modi:** `.page` trägt
+    einen 9px-transparenten Rahmen — Prozentwerte gegen die .page-Box
+    landeten sichtbar daneben (bei 33 % Zoom ≈ eine Zeile zu tief).
+    Neuer Anker `pageAnchor()` = `.canvasWrapper` (rahmenlos, exakt
+    canvasgroß, per CSS position:relative) für Drag-Regionen UND
+    Overlay-Marker (Schwärzen, Bereich, Formularfeld, Signatur, Textzeile).
+  - **Lektion (Testumgebung, zwei Stunden gekostet):** pdf.js baut
+    Text-/Editor-Layer erst, wenn der Tab SICHTBAR ist — in
+    Hintergrund-Tabs der Browser-Automation „hängt" der Aufbau beliebig
+    lange und CDP-Evaluates laufen in Timeouts. Erst ein Screenshot (macht
+    den Tab kurz aktiv) lässt die Layer entstehen. Zusätzlich hielt ZWEIMAL
+    ein alter Vite-Server aus einer früheren Session den Port und servierte
+    veraltete Prebundles („doc.encrypt is not a function", obwohl Quelle
+    korrekt). Regel: Bei Browser-E2E immer zuerst `lsof -iTCP:<port>`
+    prüfen und vor Layer-Abfragen einen Screenshot machen.
 - **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das

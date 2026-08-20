@@ -15,7 +15,7 @@ import StampDialog from './StampDialog';
 import CompressDialog from './CompressDialog';
 import { compressPdf, type CompressPreset } from '../compress';
 import RedactConfirmDialog from './RedactConfirmDialog';
-import { redactPdf, type RedactMark } from '../redact';
+import { redactPdf, type RedactMark, type RedactStyle } from '../redact';
 import Sidebar from './Sidebar';
 import OcrDialog, { type OcrScope } from './OcrDialog';
 import { ocrPdf, type OcrLang, type OcrProgress } from '../ocr';
@@ -27,6 +27,18 @@ import SignDialog, { type SignRequest } from './SignDialog';
 import { signPdf, type SignRegion } from '../sign';
 import ProtectDialog from './ProtectDialog';
 import type { Protection } from '../protect';
+import { movePage } from '../pages';
+import WatermarkDialog from './WatermarkDialog';
+import { applyWatermark, readWatermarks, verifyAgainstPng, type WatermarkReport } from '../watermark';
+import {
+  applyFreetextFonts,
+  type FontApplication,
+  type FreetextEntry,
+  type FreetextFontChoice,
+} from '../freetextFont';
+import { api, isTauri, type SystemFont } from '../api';
+import TextEditDialog, { type TextEditSpec } from './TextEditDialog';
+import { applyLineEdit } from '../textEdit';
 import {
   IconSelect,
   IconHighlight,
@@ -49,6 +61,8 @@ import {
   IconFormField,
   IconSign,
   IconLock,
+  IconDroplet,
+  IconTextEdit,
 } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
@@ -87,6 +101,18 @@ interface PlacedMark extends RedactMark {
   pageIndex: number;
 }
 
+/** A clicked text line waiting in the edit dialog. */
+interface PendingLineEdit {
+  pageIndex: number;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+  text: string;
+  sizePt: number;
+  bg: [number, number, number];
+}
+
 let nextMarkId = 1;
 
 /** A dragged page rectangle in page-relative percentages — the shared
@@ -99,6 +125,15 @@ interface PageRegion {
   wPct: number;
   hPct: number;
 }
+
+/** The overlay/measurement anchor inside a .page element. The page box
+ *  itself carries a 9px transparent border, so its rect is offset and
+ *  larger than the rendered PDF area — percentages measured against it
+ *  land visibly wrong at low zoom (verified: a line-edit placed ~one line
+ *  too low). The canvasWrapper is borderless and exactly canvas-sized;
+ *  our CSS gives it position:relative so marks can be %-positioned in it. */
+const pageAnchor = (pageEl: HTMLElement): HTMLElement =>
+  (pageEl.querySelector('.canvasWrapper') as HTMLElement | null) ?? pageEl;
 
 /** Drag-to-mark a rectangle on a pdf.js page. Attached directly to the
  *  pdf.js-managed page DOM (outside React's tree) rather than as a React
@@ -117,18 +152,19 @@ function useRegionDrag(
 
     container.classList.add('redacting');
 
-    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
+    let drag: { anchor: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
       null;
 
     const onDown = (e: PointerEvent) => {
       const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
       if (!pageEl) return;
-      const rect = pageEl.getBoundingClientRect();
+      const anchor = pageAnchor(pageEl);
+      const rect = anchor.getBoundingClientRect();
       const el = document.createElement('div');
       el.className = markClass;
-      pageEl.appendChild(el);
+      anchor.appendChild(el);
       drag = {
-        pageEl,
+        anchor,
         pageIndex: Number(pageEl.dataset.pageNumber) - 1,
         startX: e.clientX - rect.left,
         startY: e.clientY - rect.top,
@@ -138,7 +174,7 @@ function useRegionDrag(
 
     const onMove = (e: PointerEvent) => {
       if (!drag) return;
-      const rect = drag.pageEl.getBoundingClientRect();
+      const rect = drag.anchor.getBoundingClientRect();
       const curX = e.clientX - rect.left;
       const curY = e.clientY - rect.top;
       const x = Math.min(drag.startX, curX);
@@ -150,10 +186,10 @@ function useRegionDrag(
 
     const onUp = (e: PointerEvent) => {
       if (!drag) return;
-      const { pageEl, pageIndex, startX, startY, el } = drag;
+      const { anchor, pageIndex, startX, startY, el } = drag;
       drag = null;
       el.remove();
-      const rect = pageEl.getBoundingClientRect();
+      const rect = anchor.getBoundingClientRect();
       const curX = e.clientX - rect.left;
       const curY = e.clientY - rect.top;
       const x = Math.min(startX, curX);
@@ -291,6 +327,21 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   // password protection
   const [showProtect, setShowProtect] = useState(false);
   const [protectBusy, setProtectBusy] = useState(false);
+  // in-place line editing
+  const [editingText, setEditingText] = useState(false);
+  const [pendingLineEdit, setPendingLineEdit] = useState<PendingLineEdit | null>(null);
+  const [lineEditBusy, setLineEditBusy] = useState(false);
+  // invisible watermark
+  const [showWatermark, setShowWatermark] = useState(false);
+  const [wmBusy, setWmBusy] = useState(false);
+  const [wmReport, setWmReport] = useState<WatermarkReport | null>(null);
+  // custom fonts for the Text tool
+  const [fontChoice, setFontChoice] = useState<FreetextFontChoice>({ kind: 'default' });
+  const [systemFonts, setSystemFonts] = useState<SystemFont[] | null>(null);
+  const freetextFontMapRef = useRef<Map<string, FreetextFontChoice>>(new Map());
+  const fontBytesCacheRef = useRef<Map<string, Uint8Array>>(new Map());
+  const fontChoiceRef = useRef<FreetextFontChoice>({ kind: 'default' });
+  fontChoiceRef.current = fontChoice;
   // per-tool editor defaults, mirrored to pdf.js via updateParams
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
   const [highlightThickness, setHighlightThickness] = useState(12);
@@ -316,7 +367,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setPendingFieldRegion(null);
     setPlacingField(false);
     setSignPlacing(false);
+    setEditingText(false);
+    setPendingLineEdit(null);
     pendingSignReqRef.current = null;
+    // editors don't survive a document swap — neither do their font tags
+    freetextFontMapRef.current.clear();
 
     const eventBus = new EventBus();
     eventBusRef.current = eventBus;
@@ -336,6 +391,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       removePageBorders: false,
     });
     pdfViewerRef.current = pdfViewer;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__debugViewer = pdfViewer; // dev aid, same convention as __debugPdfjs
     linkService.setViewer(pdfViewer);
 
     const onPagesInit = () => {
@@ -479,7 +536,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         width: `${mark.wPct * 100}%`,
         height: `${mark.hPct * 100}%`,
       });
-      pageEl.appendChild(el);
+      pageAnchor(pageEl as HTMLElement).appendChild(el);
       placed.push(el);
     }
     return () => {
@@ -525,7 +582,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       width: `${pendingRegion.wPct * 100}%`,
       height: `${pendingRegion.hPct * 100}%`,
     });
-    pageEl.appendChild(el);
+    pageAnchor(pageEl as HTMLElement).appendChild(el);
     return () => {
       el.remove();
     };
@@ -545,7 +602,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       width: `${pendingFieldRegion.wPct * 100}%`,
       height: `${pendingFieldRegion.hPct * 100}%`,
     });
-    pageEl.appendChild(el);
+    pageAnchor(pageEl as HTMLElement).appendChild(el);
     return () => {
       el.remove();
     };
@@ -586,6 +643,155 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     });
   }, []);
 
+  // --- Text-tool fonts -----------------------------------------------------
+  // pdf.js's FreeText editor has no font parameter — see freetextFont.ts for
+  // how the chosen font is baked into the annotation's appearance at save
+  // time. Here: per-editor bookkeeping + live CSS preview.
+
+  const cssFontFamily = (choice: FreetextFontChoice): string => {
+    if (choice.kind === 'standard') {
+      return choice.font === 'times' ? '"Times New Roman", Times, serif' : '"Courier New", Courier, monospace';
+    }
+    if (choice.kind === 'system') return `"pdfedit-sys-${choice.name}"`;
+    return 'Helvetica, Arial, sans-serif';
+  };
+
+  /** Tags every FreeText editor in the DOM with the font it was created
+   *  under (first sighting wins) and mirrors that font into its inline
+   *  style for a truthful live preview. */
+  const recordFreetextEditors = useCallback(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    for (const el of container.querySelectorAll<HTMLElement>('.freeTextEditor')) {
+      if (!el.id) continue;
+      if (!freetextFontMapRef.current.has(el.id)) {
+        freetextFontMapRef.current.set(el.id, fontChoiceRef.current);
+      }
+      const fam = cssFontFamily(freetextFontMapRef.current.get(el.id)!);
+      el.style.fontFamily = fam;
+      const internal = el.querySelector<HTMLElement>('.internal');
+      if (internal) internal.style.fontFamily = fam;
+    }
+  }, []);
+
+  const loadedFacesRef = useRef<Set<string>>(new Set());
+  const ensureFontFace = async (choice: { name: string; path: string }) => {
+    if (loadedFacesRef.current.has(choice.name)) return;
+    let bytes = fontBytesCacheRef.current.get(choice.path);
+    if (!bytes) {
+      bytes = new Uint8Array(await api.readFont(choice.path));
+      fontBytesCacheRef.current.set(choice.path, bytes);
+    }
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const face = new FontFace(`pdfedit-sys-${choice.name}`, buf);
+    await face.load();
+    document.fonts.add(face);
+    loadedFacesRef.current.add(choice.name);
+  };
+
+  const changeFont = async (key: string) => {
+    let choice: FreetextFontChoice = { kind: 'default' };
+    if (key === 'std:times') choice = { kind: 'standard', font: 'times' };
+    else if (key === 'std:courier') choice = { kind: 'standard', font: 'courier' };
+    else if (key.startsWith('sys:')) {
+      const path = key.slice(4);
+      const f = systemFonts?.find((x) => x.path === path);
+      if (!f) return;
+      choice = { kind: 'system', name: f.name, path };
+    }
+    if (choice.kind === 'system') {
+      try {
+        await ensureFontFace(choice);
+      } catch (err) {
+        onError(`${t.fontLoadError}: ${String(err)}`);
+        return;
+      }
+    }
+    setFontChoice(choice);
+    fontChoiceRef.current = choice;
+    const container = containerRef.current;
+    container?.style.setProperty('--pdfedit-ft-font', cssFontFamily(choice));
+    // a selected text box switches over immediately
+    for (const el of container?.querySelectorAll<HTMLElement>('.freeTextEditor.selectedEditor') ?? []) {
+      if (el.id) freetextFontMapRef.current.set(el.id, choice);
+    }
+    recordFreetextEditors();
+  };
+
+  // enumerate installed fonts the first time the Text tool (or the line
+  // editor's dialog) needs them
+  useEffect(() => {
+    if ((tool !== 'freetext' && !pendingLineEdit) || systemFonts !== null || !isTauri) return;
+    api
+      .listSystemFonts()
+      .then(setSystemFonts)
+      .catch(() => setSystemFonts([]));
+  }, [tool, systemFonts, pendingLineEdit]);
+
+  // a fresh text box only exists after the pointer is released — tag it
+  // with the active font right away so the live preview is truthful
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onUp = () => window.setTimeout(recordFreetextEditors, 60);
+    container.addEventListener('pointerup', onUp, true);
+    return () => container.removeEventListener('pointerup', onUp, true);
+  }, [recordFreetextEditors, data]);
+
+  /** saveDocument() + custom-font appearance pass — the single exit point
+   *  every feature uses to get the current bytes. */
+  const saveWithFonts = useCallback(async (): Promise<Uint8Array> => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) throw new Error('no document');
+    recordFreetextEditors();
+    const bytes = await pdfViewer.pdfDocument.saveDocument();
+    const map = freetextFontMapRef.current;
+    if (![...map.values()].some((c) => c.kind !== 'default')) return bytes;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ser = (pdfViewer.pdfDocument.annotationStorage as any)?.serializable;
+    const entries: [string, Record<string, unknown>][] = ser?.map ? [...ser.map.entries()] : [];
+    const apps: FontApplication[] = [];
+    for (const [id, v] of entries) {
+      if ((v as { annotationType?: number })?.annotationType !== 3 /* FREETEXT */) continue;
+      const choice = map.get(id) ?? ({ kind: 'default' } as FreetextFontChoice);
+      if (choice.kind === 'default') continue;
+      let fontBytes: Uint8Array | null = null;
+      if (choice.kind === 'system') {
+        fontBytes = fontBytesCacheRef.current.get(choice.path) ?? null;
+        if (!fontBytes) {
+          try {
+            fontBytes = new Uint8Array(await api.readFont(choice.path));
+            fontBytesCacheRef.current.set(choice.path, fontBytes);
+          } catch {
+            continue; // font vanished — the annotation keeps Helvetica
+          }
+        }
+      }
+      const val = v as {
+        pageIndex: number;
+        rect: [number, number, number, number];
+        value: string;
+        fontSize: number;
+        color?: number[];
+      };
+      const entry: FreetextEntry = {
+        pageIndex: val.pageIndex,
+        rect: val.rect,
+        value: val.value,
+        fontSize: val.fontSize,
+        color: [val.color?.[0] ?? 0, val.color?.[1] ?? 0, val.color?.[2] ?? 0],
+      };
+      apps.push({ entry, choice, fontBytes });
+    }
+    if (apps.length === 0) return bytes;
+    try {
+      return await applyFreetextFonts(bytes, apps);
+    } catch (err) {
+      onError(`${t.fontLoadError}: ${String(err)}`);
+      return bytes;
+    }
+  }, [recordFreetextEditors, onError]);
+
   const doCheckpoint = useCallback(async (): Promise<Uint8Array | null> => {
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer?.pdfDocument) return null;
@@ -594,7 +800,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       // can still be the only reason this doc is dirty at all.
       await commitPendingEdits();
       if (!dirtyRef.current) return null;
-      return await pdfViewer.pdfDocument.saveDocument();
+      return await saveWithFonts();
     } catch (err) {
       // best-effort — losing the in-memory checkpoint beats crashing the tab
       // switch, but surface it: the user's edits since the last real Save
@@ -602,7 +808,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onError(`${t.saveError}: ${String(err)}`);
       return null;
     }
-  }, [onError, commitPendingEdits]);
+  }, [onError, commitPendingEdits, saveWithFonts]);
 
   useImperativeHandle(ref, () => ({ checkpoint: doCheckpoint }), [doCheckpoint]);
 
@@ -613,6 +819,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setEditingRegion(false);
     setPlacingField(false);
     setSignPlacing(false);
+    setEditingText(false);
     pendingSignReqRef.current = null;
   };
 
@@ -634,6 +841,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const toggleRedact = () => enterDragMode(redacting, setRedacting);
   const toggleEditRegion = () => enterDragMode(editingRegion, setEditingRegion);
   const togglePlaceField = () => enterDragMode(placingField, setPlacingField);
+  const toggleTextEdit = () => enterDragMode(editingText, setEditingText);
 
   /** Pushes a tool default (color, size, …) into pdf.js's editor UI
    *  manager — applies to the current selection or, without one, becomes
@@ -684,7 +892,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setSaving(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       dirtyRef.current = false;
       onDirtyChange(false);
       onSave(bytes);
@@ -701,7 +909,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setFlattening(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const libDoc = await PdfLibDocument.load(bytes);
       libDoc.getForm().flatten();
       const flat = await libDoc.save();
@@ -720,7 +928,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     if (!pdfViewer?.pdfDocument) return null;
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const { bytes: compressed, imagesTouched } = await compressPdf(bytes, preset);
       if (imagesTouched === 0) return null;
       dirtyRef.current = true;
@@ -733,20 +941,20 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
-  const doRedact = async (cleanMetadata: boolean) => {
+  const doRedact = async (cleanMetadata: boolean, style: RedactStyle) => {
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer?.pdfDocument || marks.length === 0) return;
     setRedactBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const marksByPage = new Map<number, RedactMark[]>();
       for (const mark of marks) {
         const list = marksByPage.get(mark.pageIndex) ?? [];
         list.push(mark);
         marksByPage.set(mark.pageIndex, list);
       }
-      const { bytes: redacted } = await redactPdf(bytes, marksByPage, { cleanMetadata });
+      const { bytes: redacted } = await redactPdf(bytes, marksByPage, { cleanMetadata, style });
       setMarks([]);
       setShowRedactConfirm(false);
       setRedacting(false);
@@ -766,7 +974,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setRegionEditBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const edited = await applyRegionEdit(bytes, pendingRegion, content);
       setPendingRegion(null);
       setEditingRegion(false);
@@ -786,7 +994,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setOcrResult(null);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const pageIndices =
         scope === 'all'
           ? Array.from({ length: pdfViewer.pagesCount }, (_, i) => i)
@@ -823,7 +1031,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setFieldBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const withField = await addFormField(bytes, region, spec);
       setPendingFieldRegion(null);
       setPlacingField(false);
@@ -847,7 +1055,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setSignBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       const signed = await signPdf(bytes, {
         p12Bytes: req.p12Bytes,
         p12Password: req.p12Password,
@@ -892,7 +1100,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setProtectBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       onProtectionChange(next);
       onSave(bytes, next);
       setShowProtect(false);
@@ -910,7 +1118,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setProtectBusy(true);
     try {
       await commitPendingEdits();
-      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const bytes = await saveWithFonts();
       onProtectionChange(null);
       onSave(bytes, null);
       setShowProtect(false);
@@ -920,6 +1128,248 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     } finally {
       setProtectBusy(false);
     }
+  };
+
+  // In-place text editing: with the mode active, a click on the page finds
+  // the text LINE under the cursor via pdf.js's text layer, samples the
+  // page background around it from the rendered canvas, and opens the edit
+  // dialog prefilled with the line's text and estimated size.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!editingText || !container) return;
+    container.classList.add('textediting');
+
+    const onClick = (e: MouseEvent) => {
+      const span = (e.target as HTMLElement).closest?.('.textLayer span') as HTMLElement | null;
+      if (!span || !span.textContent?.trim()) {
+        onError(t.textEditNoText);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      const pageEl = span.closest('.page') as HTMLElement;
+      const pageIndex = Number(pageEl.dataset.pageNumber) - 1;
+      // Measure against the CANVAS, not .page: the page element carries a
+      // border, so its box is offset/larger than the rendered PDF area —
+      // enough to land the replacement a line too low (seen in testing).
+      const canvas = pageEl.querySelector('canvas');
+      const pageRect = (canvas ?? pageEl).getBoundingClientRect();
+      if (pageRect.width === 0 || pageRect.height === 0) return;
+      const target = span.getBoundingClientRect();
+      const cy = target.top + target.height / 2;
+
+      const lineSpans = [...pageEl.querySelectorAll<HTMLElement>('.textLayer span')]
+        .filter((s) => {
+          if (!s.textContent?.trim()) return false;
+          const r = s.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) return false;
+          const c = r.top + r.height / 2;
+          return Math.abs(c - cy) < Math.max(r.height, target.height) * 0.5;
+        })
+        .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left);
+      if (lineSpans.length === 0) {
+        onError(t.textEditNoText);
+        return;
+      }
+
+      let left = Infinity;
+      let right = -Infinity;
+      let top = Infinity;
+      let bottom = -Infinity;
+      let text = '';
+      let prevRight: number | null = null;
+      for (const s of lineSpans) {
+        const r = s.getBoundingClientRect();
+        // pdf.js sometimes splits a line into runs without the space in
+        // between — reinsert one when there's a visible gap
+        if (prevRight !== null && r.left - prevRight > r.height * 0.25 && !text.endsWith(' ')) {
+          text += ' ';
+        }
+        text += s.textContent ?? '';
+        prevRight = r.right;
+        left = Math.min(left, r.left);
+        right = Math.max(right, r.right);
+        top = Math.min(top, r.top);
+        bottom = Math.max(bottom, r.bottom);
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const view = (pdfViewerRef.current as any)?._pages?.[pageIndex]?.pdfPage?.view as
+        | number[]
+        | undefined;
+      const pageHeightPt = view ? Math.abs(view[3] - view[1]) : 842;
+      const hPct = (bottom - top) / pageRect.height;
+      // pdf.js text-layer spans are sized to the font size — the line bbox
+      // height IS the point size (verified against a known 14pt sample)
+      const sizePt = Math.max(4, Math.round(hPct * pageHeightPt * 2) / 2);
+
+      let bg: [number, number, number] = [255, 255, 255];
+      const cctx = canvas?.getContext('2d', { willReadFrequently: true });
+      if (canvas && cctx) {
+        const sx = canvas.width / pageRect.width;
+        const sy = canvas.height / pageRect.height;
+        const samples: number[][] = [];
+        const probe = (px: number, py: number) => {
+          const cx = Math.min(canvas.width - 1, Math.max(0, Math.round((px - pageRect.left) * sx)));
+          const cyy = Math.min(canvas.height - 1, Math.max(0, Math.round((py - pageRect.top) * sy)));
+          const d = cctx.getImageData(cx, cyy, 1, 1).data;
+          samples.push([d[0], d[1], d[2]]);
+        };
+        for (const fx of [0.1, 0.5, 0.9]) {
+          probe(left + (right - left) * fx, top - 4);
+          probe(left + (right - left) * fx, bottom + 4);
+        }
+        samples.sort((a, b) => a[0] + a[1] + a[2] - (b[0] + b[1] + b[2]));
+        bg = samples[Math.floor(samples.length / 2)] as [number, number, number];
+      }
+
+      setPendingLineEdit({
+        pageIndex,
+        xPct: (left - pageRect.left) / pageRect.width,
+        yPct: (top - pageRect.top) / pageRect.height,
+        wPct: (right - left) / pageRect.width,
+        hPct,
+        text,
+        sizePt,
+        bg,
+      });
+      setEditingText(false);
+    };
+
+    container.addEventListener('click', onClick, true);
+    return () => {
+      container.classList.remove('textediting');
+      container.removeEventListener('click', onClick, true);
+    };
+  }, [editingText, onError]);
+
+  // keep the picked line visible while its dialog is open
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !pendingLineEdit) return;
+    const pageEl = container.querySelector(`.page[data-page-number="${pendingLineEdit.pageIndex + 1}"]`);
+    if (!pageEl) return;
+    const el = document.createElement('div');
+    el.className = 'editregion-mark';
+    Object.assign(el.style, {
+      left: `${pendingLineEdit.xPct * 100}%`,
+      top: `${pendingLineEdit.yPct * 100}%`,
+      width: `${pendingLineEdit.wPct * 100}%`,
+      height: `${pendingLineEdit.hPct * 100}%`,
+    });
+    pageAnchor(pageEl as HTMLElement).appendChild(el);
+    return () => el.remove();
+  }, [pendingLineEdit]);
+
+  const previewFontFamily = async (choice: FreetextFontChoice): Promise<string> => {
+    if (choice.kind === 'system') await ensureFontFace(choice);
+    return cssFontFamily(choice);
+  };
+
+  const doApplyLineEdit = async (spec: TextEditSpec) => {
+    const pdfViewer = pdfViewerRef.current;
+    const pending = pendingLineEdit;
+    if (!pdfViewer?.pdfDocument || !pending) return;
+    setLineEditBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      let fontBytes: Uint8Array | null = null;
+      if (spec.choice.kind === 'system') {
+        fontBytes = fontBytesCacheRef.current.get(spec.choice.path) ?? null;
+        if (!fontBytes) {
+          fontBytes = new Uint8Array(await api.readFont(spec.choice.path));
+          fontBytesCacheRef.current.set(spec.choice.path, fontBytes);
+        }
+      }
+      const hex = spec.colorHex.replace('#', '');
+      const color: [number, number, number] = [
+        parseInt(hex.slice(0, 2), 16) || 0,
+        parseInt(hex.slice(2, 4), 16) || 0,
+        parseInt(hex.slice(4, 6), 16) || 0,
+      ];
+      const edited = await applyLineEdit(bytes, {
+        pageIndex: pending.pageIndex,
+        xPct: pending.xPct,
+        yPct: pending.yPct,
+        wPct: pending.wPct,
+        hPct: pending.hPct,
+        newText: spec.newText,
+        sizePt: spec.sizePt,
+        color,
+        bg: pending.bg,
+        choice: spec.choice,
+        fontBytes,
+      });
+      setPendingLineEdit(null);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(edited);
+    } catch (err) {
+      onError(`${t.textEditError}: ${String(err)}`);
+    } finally {
+      setLineEditBusy(false);
+    }
+  };
+
+  // Sidebar drag & drop — one page moves, everything else stays untouched
+  // (see pages.ts for why this is safe for form fields).
+  const doMovePage = async (from: number, to: number) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      const moved = await movePage(bytes, from, to);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(moved);
+    } catch (err) {
+      onError(`${t.pageMoveError}: ${String(err)}`);
+    }
+  };
+
+  const openWatermark = async () => {
+    setWmReport(null);
+    setShowWatermark(true);
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      setWmReport(await readWatermarks(bytes));
+    } catch (err) {
+      onError(`${t.wmError}: ${String(err)}`);
+    }
+  };
+
+  const doApplyWatermark = async (pngBytes: Uint8Array, scope: 'all' | 'current') => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    setWmBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      const marked = await applyWatermark(
+        bytes,
+        pngBytes,
+        scope === 'all' ? 'all' : [pdfViewer.currentPageNumber - 1]
+      );
+      setShowWatermark(false);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(marked);
+      onNotice(t.wmApplied);
+    } catch (err) {
+      onError(`${t.wmError}: ${String(err)}`);
+    } finally {
+      setWmBusy(false);
+    }
+  };
+
+  const doVerifyWatermarkPng = async (pngBytes: Uint8Array) => {
+    if (!wmReport) return [];
+    return verifyAgainstPng(wmReport, pngBytes);
   };
 
   // Placement, moving and resizing is pdf.js's own Stamp editor — we only
@@ -1041,6 +1491,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             {t.redactButton}
           </button>
           <button
+            className={editingText ? 'iconbtn active' : 'iconbtn'}
+            onClick={toggleTextEdit}
+            disabled={!ready}
+            title={t.textEditHint}
+          >
+            <IconTextEdit size={16} />
+            {t.textEditButton}
+          </button>
+          <button
             className={editingRegion ? 'iconbtn active' : 'iconbtn'}
             onClick={toggleEditRegion}
             disabled={!ready}
@@ -1080,6 +1539,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           >
             <IconLock size={16} />
             {t.protectButton}
+          </button>
+          <button
+            className="iconbtn"
+            onClick={() => void openWatermark()}
+            disabled={!ready}
+            title={t.wmTitle}
+          >
+            <IconDroplet size={16} />
+            {t.wmButton}
           </button>
         </div>
 
@@ -1144,6 +1612,32 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           })}
           {tool === 'freetext' && (
             <>
+              <span className="proplabel">{t.propFont}</span>
+              <select
+                className="fontselect"
+                value={
+                  fontChoice.kind === 'default'
+                    ? 'default'
+                    : fontChoice.kind === 'standard'
+                      ? `std:${fontChoice.font}`
+                      : `sys:${fontChoice.path}`
+                }
+                onChange={(e) => void changeFont(e.target.value)}
+              >
+                <option value="default">{t.fontDefault}</option>
+                <option value="std:times">{t.fontTimes}</option>
+                <option value="std:courier">{t.fontCourier}</option>
+                {isTauri && systemFonts === null && <option disabled>{t.fontsLoading}</option>}
+                {systemFonts && systemFonts.length > 0 && (
+                  <optgroup label={t.fontSystemGroup}>
+                    {systemFonts.map((f) => (
+                      <option key={f.path} value={`sys:${f.path}`}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
               <span className="proplabel">{t.propSize}</span>
               <input
                 type="range"
@@ -1219,6 +1713,12 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         </div>
       )}
 
+      {editingText && (
+        <div className="redactbar">
+          <span className="faint">{t.textEditHint}</span>
+        </div>
+      )}
+
       {signPlacing && (
         <div className="redactbar">
           <span className="faint">{t.signPlaceHint}</span>
@@ -1273,6 +1773,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             currentPage={pageInfo.current}
             onJump={jumpToPage}
             onOpenPages={() => setShowPages(true)}
+            onMove={doMovePage}
           />
         )}
         <div className="pdfjs-outer">
@@ -1350,6 +1851,30 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           onApply={doApplyProtection}
           onRemove={doRemoveProtection}
           onCancel={() => setShowProtect(false)}
+        />
+      )}
+
+      {pendingLineEdit && (
+        <TextEditDialog
+          initialText={pendingLineEdit.text}
+          initialSizePt={pendingLineEdit.sizePt}
+          systemFonts={systemFonts}
+          busy={lineEditBusy}
+          onPreviewFont={previewFontFamily}
+          onApply={doApplyLineEdit}
+          onCancel={() => setPendingLineEdit(null)}
+        />
+      )}
+
+      {showWatermark && (
+        <WatermarkDialog
+          currentPage={pageInfo.current}
+          totalPages={pageInfo.total}
+          busy={wmBusy}
+          report={wmReport}
+          onApply={doApplyWatermark}
+          onVerifyPng={doVerifyWatermarkPng}
+          onClose={() => setShowWatermark(false)}
         />
       )}
     </div>

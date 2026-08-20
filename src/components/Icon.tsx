@@ -171,6 +171,19 @@ export const IconSign = ({ size = 18 }: Props) => (
   </svg>
 );
 
+export const IconDroplet = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <path d="M10 3c2.8 3.4 5 6 5 8.6a5 5 0 0 1-10 0C5 9 7.2 6.4 10 3z" />
+  </svg>
+);
+
+export const IconTextEdit = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <path d="M3 5h9M3 9h6M3 13h5" />
+    <path d="M10.5 14.5l5.5-5.5 1.8 1.8-5.5 5.5H10.5v-1.8z" fill="currentColor" stroke="none" />
+  </svg>
+);
+
 export const IconLock = ({ size = 18 }: Props) => (
   <svg width={size} height={size} {...base}>
     <rect x="4.5" y="9" width="11" height="8" rx="1.2" />

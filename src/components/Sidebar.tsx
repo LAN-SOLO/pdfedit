@@ -8,15 +8,20 @@ interface Props {
   currentPage: number;
   onJump: (page: number) => void;
   onOpenPages: () => void;
+  /** Move page `from` (0-based) to position `to` — sidebar drag & drop. */
+  onMove: (from: number, to: number) => void;
 }
 
-/** Read-only page rail, always visible next to the viewer — the quick way
- *  to see and jump between pages. Reordering/rotating/merging stays in the
- *  full Pages dialog (opened via the button at the top), which needs the
- *  extra room for per-page actions that a ~150px-wide rail doesn't have. */
-export default function Sidebar({ data, currentPage, onJump, onOpenPages }: Props) {
+/** Page rail, always visible next to the viewer — jump between pages by
+ *  click, reorder them by drag & drop. Rotating/merging/deleting stays in
+ *  the full Pages dialog (opened via the button at the top), which needs
+ *  the extra room for per-page actions that a ~150px-wide rail doesn't
+ *  have. */
+export default function Sidebar({ data, currentPage, onJump, onOpenPages, onMove }: Props) {
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
   const [pageCount, setPageCount] = useState(0);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
   const activeThumbRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -55,6 +60,11 @@ export default function Sidebar({ data, currentPage, onJump, onOpenPages }: Prop
     activeThumbRef.current?.scrollIntoView({ block: 'nearest' });
   }, [currentPage]);
 
+  const resetDrag = () => {
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+
   return (
     <div className="sidebar">
       <div className="sidebar-head">
@@ -68,12 +78,42 @@ export default function Sidebar({ data, currentPage, onJump, onOpenPages }: Prop
           <button
             key={n}
             ref={n === currentPage ? activeThumbRef : undefined}
-            className={n === currentPage ? 'sidebar-thumb active' : 'sidebar-thumb'}
+            className={[
+              'sidebar-thumb',
+              n === currentPage ? 'active' : '',
+              overIndex === n - 1 && dragIndex !== null && dragIndex !== n - 1 ? 'dragover' : '',
+              dragIndex === n - 1 ? 'dragging' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             onClick={() => onJump(n)}
+            title={t.sidebarDragHint}
+            draggable
+            onDragStart={(e) => {
+              setDragIndex(n - 1);
+              e.dataTransfer.effectAllowed = 'move';
+              // some engines need data set for a drag to start
+              e.dataTransfer.setData('text/plain', String(n));
+            }}
+            onDragOver={(e) => {
+              if (dragIndex === null) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+              setOverIndex(n - 1);
+            }}
+            onDragLeave={() => {
+              setOverIndex((v) => (v === n - 1 ? null : v));
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (dragIndex !== null && dragIndex !== n - 1) onMove(dragIndex, n - 1);
+              resetDrag();
+            }}
+            onDragEnd={resetDrag}
           >
             {thumbs[n] ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbs[n]} alt="" />
+              <img src={thumbs[n]} alt="" draggable={false} />
             ) : (
               <span className="sidebar-thumb-placeholder" />
             )}

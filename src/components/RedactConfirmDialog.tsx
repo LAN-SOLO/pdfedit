@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { t } from '../i18n';
+import type { RedactStyle } from '../redact';
 
 interface Props {
   markCount: number;
-  onConfirm: (cleanMetadata: boolean) => void;
+  onConfirm: (cleanMetadata: boolean, style: RedactStyle) => void;
   onCancel: () => void;
   busy: boolean;
 }
 
 export default function RedactConfirmDialog({ markCount, onConfirm, onCancel, busy }: Props) {
   const [cleanMetadata, setCleanMetadata] = useState(false);
+  const [style, setStyle] = useState<RedactStyle>('black');
 
   return (
     <div className="overlay" onClick={busy ? undefined : onCancel}>
@@ -23,6 +25,28 @@ export default function RedactConfirmDialog({ markCount, onConfirm, onCancel, bu
         <div className="mbody">
           <p>{t.redactConfirmBody(markCount)}</p>
           <p className="faint">{t.redactConfirmHint}</p>
+          <label className="fieldlabel">{t.redactStyleLabel}</label>
+          <label className="checkrow">
+            <input
+              type="radio"
+              name="redactstyle"
+              checked={style === 'black'}
+              onChange={() => setStyle('black')}
+              disabled={busy}
+            />
+            {t.redactStyleBlack}
+          </label>
+          <label className="checkrow">
+            <input
+              type="radio"
+              name="redactstyle"
+              checked={style === 'pixelate'}
+              onChange={() => setStyle('pixelate')}
+              disabled={busy}
+            />
+            {t.redactStylePixelate}
+          </label>
+          {style === 'pixelate' && <p className="faint dialoghint">{t.redactStylePixelateHint}</p>}
           <label className="checkrow">
             <input
               type="checkbox"
@@ -37,7 +61,7 @@ export default function RedactConfirmDialog({ markCount, onConfirm, onCancel, bu
           <button onClick={onCancel} disabled={busy}>
             {t.cancel}
           </button>
-          <button className="danger" onClick={() => onConfirm(cleanMetadata)} disabled={busy}>
+          <button className="danger" onClick={() => onConfirm(cleanMetadata, style)} disabled={busy}>
             {busy ? t.redacting : t.redactApply}
           </button>
         </div>

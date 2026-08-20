@@ -87,7 +87,17 @@ const de: Content = {
         'Bei Markieren, Text und Zeichnen erscheint eine Eigenschaften-Leiste unter den Werkzeugen:',
         '• Farbe — per Klick auf ein Farbfeld, gilt auch für die gerade ausgewählte Anmerkung',
         '• Größe (Text), Stärke und Deckkraft (Zeichnen), Stärke (freies Markieren)',
+        '• Schrift (Text) — Helvetica, Times, Courier oder jede installierte Systemschrift',
         'Alles wird als ISO-32000-Anmerkung gespeichert und bleibt in Acrobat & Co. bearbeitbar.',
+      ],
+    },
+    {
+      title: 'Inhalte ändern',
+      body: [
+        '• Text ändern — bestehende Textzeile anklicken: Tippfehler korrigieren, Farbe/Größe/Schrift ändern',
+        '• Seiten per Drag & Drop in der Seitenleiste umsortieren',
+        '• Schwärzen — jetzt wahlweise schwarz oder verpixelt',
+        '• Wasserzeichen — unsichtbares PNG einbetten und prüfen: ausgetauschte Seiten fallen auf',
       ],
     },
     {
@@ -147,7 +157,32 @@ const de: Content = {
         '• Größe — Schriftgröße des Text-Werkzeugs',
         '• Stärke & Deckkraft — Strichbreite und Transparenz beim Zeichnen',
         '• Stärke beim Markieren — gilt für freies Markieren neben Text',
-        'Grenze, ehrlich benannt: Schriftart und Ausrichtung des Text-Werkzeugs sind (noch) fest — das liegt an der Editor-Engine und steht auf der Roadmap.',
+        '• Schrift beim Text-Werkzeug — Helvetica (Standard), Times, Courier oder jede installierte Systemschrift; die gewählte Schrift wird beim Speichern in die Datei eingebettet',
+        'Grenze, ehrlich benannt: Bearbeitet ein anderes Programm die Textbox später, kann deren Darstellung auf die Standardschrift zurückfallen. Ausrichtung ist (noch) fest.',
+      ],
+    },
+    {
+      id: 'textedit',
+      title: 'Text ändern',
+      body: [
+        '„Text ändern" korrigiert bestehenden Text direkt auf der Seite (bei digital erzeugten PDFs, nicht bei Scans — dafür erst OCR):',
+        '• Werkzeug aktivieren und die Textzeile anklicken',
+        '• Text korrigieren, Farbe (auch frei wählbar), Größe und Schrift festlegen',
+        'Der neue Text wird als echter, durchsuchbarer Text geschrieben; die Originalzeile wird mit der Hintergrundfarbe der Seite überdeckt.',
+        'Ehrlich benannt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen), und die exakte Schrift/Laufweite des Originals wird nicht immer getroffen. Echte Fließtext-Bearbeitung mit Umbruch ist der nächste große Meilenstein.',
+      ],
+    },
+    {
+      id: 'watermark',
+      title: 'Unsichtbares Wasserzeichen',
+      body: [
+        'Der Wasserzeichen-Dialog bettet ein PNG (Transparenz bleibt erhalten) unsichtbar in gewählte oder alle Seiten ein und vermerkt es pro Seite.',
+        'Der Prüfen-Tab liest die Markierungen wieder aus:',
+        '• Seiten ohne Wasserzeichen → möglicherweise ausgetauscht',
+        '• Position stimmt nicht mehr → Seiten wurden umsortiert',
+        '• Unterschiedliche Wasserzeichen → vermischte Herkunft',
+        '• Optional gegen das Original-PNG prüfen (Hash-Vergleich)',
+        'Einordnung: Manipulations-Erkennung für den Alltag, kein kryptografischer Beweis — für belastbare Integrität zusätzlich digital signieren.',
       ],
     },
     {
@@ -190,7 +225,7 @@ const de: Content = {
       id: 'pages',
       title: 'Seiten organisieren',
       body: [
-        'Das Seiten-Panel ist die Werkbank für die Dokumentstruktur:',
+        'Schnellster Weg: Seiten direkt in der Seitenleiste per Drag & Drop umsortieren. Das Seiten-Panel ist die Werkbank für alles Weitere:',
         '• Umsortieren — Seiten in neue Reihenfolge bringen',
         '• Leere Seite einfügen — an beliebiger Stelle',
         '• Zusammenführen — ein weiteres PDF ans Dokument anhängen',
@@ -225,6 +260,7 @@ const de: Content = {
       body: [
         'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt.',
         'Ablauf: Schwärzen aktivieren → Bereiche auf den Seiten markieren → „Anwenden“ → Sicherheitsabfrage bestätigen.',
+        'Darstellung wählbar: schwarz übermalen oder verpixeln (Mosaik). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
         'Optional werden dabei auch die Metadaten des Dokuments bereinigt (Autor, Titel, Erstellungsprogramm …).',
         'Achtung: Der Vorgang ist unwiderruflich. Formularfelder und Anmerkungen auf betroffenen Seiten werden mit entfernt. Im Zweifel vorher eine Kopie speichern.',
       ],
@@ -269,7 +305,7 @@ const de: Content = {
       id: 'updates',
       title: 'Updates',
       body: [
-        'pdfedit prüft bei jedem Start automatisch auf neue Versionen. Liegt eine bereit, öffnet sich der Update-Dialog mit dem Changelog — installiert wird erst nach deinem Klick.',
+        'pdfedit prüft beim Start und danach laufend (alle paar Stunden sowie beim Fenster-Fokus) auf neue Versionen — trifft ein Update auf GitHub ein, meldet sich die App von selbst. Liegt eine bereit, öffnet sich der Update-Dialog mit dem Changelog — installiert wird erst nach deinem Klick.',
         'Manuell prüfen: „Nach Updates suchen“.',
         'Updates kommen signiert von GitHub (LAN-SOLO/pdfedit): Die App prüft die Signatur, bevor irgendetwas installiert wird.',
       ],
@@ -340,7 +376,17 @@ const en: Content = {
         'With Highlight, Text and Draw active, a properties bar appears below the tools:',
         '• Color — click a swatch; also applies to the currently selected annotation',
         '• Size (text), thickness and opacity (drawing), thickness (free highlighting)',
+        '• Font (text) — Helvetica, Times, Courier or any installed system font',
         'Everything is stored as ISO 32000 annotations and stays editable in Acrobat & co.',
+      ],
+    },
+    {
+      title: 'Changing content',
+      body: [
+        '• Edit text — click an existing text line: fix typos, change color/size/font',
+        '• Reorder pages by drag & drop in the sidebar',
+        '• Redact — now solid black or pixelated',
+        '• Watermark — embed and verify an invisible PNG: swapped pages stand out',
       ],
     },
     {
@@ -400,7 +446,32 @@ const en: Content = {
         '• Size — font size of the Text tool',
         '• Thickness & opacity — stroke width and transparency when drawing',
         '• Highlight thickness — applies to free highlighting next to text',
-        'One honest limit: font family and alignment of the Text tool are fixed (for now) — an editor-engine constraint that is on the roadmap.',
+        '• Text-tool font — Helvetica (default), Times, Courier or any installed system font; the chosen font is embedded into the file on save',
+        'One honest limit: if another app later edits the text box, its rendering may fall back to the default font. Alignment is fixed (for now).',
+      ],
+    },
+    {
+      id: 'textedit',
+      title: 'Edit text',
+      body: [
+        '"Edit text" corrects existing text right on the page (for born-digital PDFs, not scans — run OCR first for those):',
+        '• Activate the tool and click the text line',
+        '• Fix the text, pick a color (fully custom too), size and font',
+        'The new text is written as real, searchable text; the original line is covered with the page background color.',
+        'Honestly: the original remains invisibly in the file (remove for good: redaction), and the exact original typeface/spacing is not always matched. True reflow editing is the next big milestone.',
+      ],
+    },
+    {
+      id: 'watermark',
+      title: 'Invisible watermark',
+      body: [
+        'The watermark dialog embeds a PNG (transparency preserved) invisibly into selected or all pages and records it per page.',
+        'The verify tab reads the marks back:',
+        '• Pages without the watermark → possibly swapped in',
+        '• Recorded position no longer matches → pages were reordered',
+        '• Different watermarks → mixed origin',
+        '• Optionally check against the original PNG (hash comparison)',
+        'For context: everyday tamper evidence, not cryptographic proof — for hard integrity, additionally sign digitally.',
       ],
     },
     {
@@ -443,7 +514,7 @@ const en: Content = {
       id: 'pages',
       title: 'Organizing pages',
       body: [
-        'The pages panel is the workbench for document structure:',
+        'Fastest route: reorder pages directly in the sidebar via drag & drop. The pages panel is the workbench for everything else:',
         '• Reorder — bring pages into a new order',
         '• Insert blank page — anywhere',
         '• Merge — append another PDF to the document',
@@ -478,6 +549,7 @@ const en: Content = {
       body: [
         'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box.',
         'Flow: enable redaction → mark areas on the pages → “Apply” → confirm the safety prompt.',
+        'Choose the style: solid black or pixelate (mosaic). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
         'Optionally the document’s metadata is cleaned as well (author, title, creating application …).',
         'Caution: this cannot be undone. Form fields and annotations on affected pages are removed too. When in doubt, save a copy first.',
       ],
@@ -522,7 +594,7 @@ const en: Content = {
       id: 'updates',
       title: 'Updates',
       body: [
-        'pdfedit checks for new versions automatically on every launch. When one is available, the update dialog opens with the changelog — installing needs your click.',
+        'pdfedit checks for new versions at launch and continuously afterwards (every few hours and on window focus) — when an update lands on GitHub, the app speaks up by itself. When one is available, the update dialog opens with the changelog — installing needs your click.',
         'Check manually: “Check for updates”.',
         'Updates come signed from GitHub (LAN-SOLO/pdfedit): the app verifies the signature before installing anything.',
       ],
@@ -538,9 +610,9 @@ const en: Content = {
   ],
 };
 
-// v2: bumped with 0.11.0 so the tutorial (now covering forms, signing,
-// protection and tool properties) shows once more for existing users.
-const SEEN_KEY = 'pdfedit.tutorialSeen.v2';
+// v3: bumped with 0.11.2 so the tutorial (now also covering text editing,
+// fonts, watermarks and sidebar reordering) shows once more for existing users.
+const SEEN_KEY = 'pdfedit.tutorialSeen.v3';
 
 interface HelpProps {
   version: string;

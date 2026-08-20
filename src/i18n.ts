@@ -3,12 +3,13 @@ const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert und zeichnet ' +
-    'mit wählbarer Farbe und Größe, erstellt und füllt Formulare aus, ' +
-    'signiert digital per Zertifikat, schützt Dokumente mit Passwort ' +
-    '(und entfernt Passwörter wieder), organisiert Seiten, komprimiert, ' +
-    'schwärzt dauerhaft und erkennt Text per OCR — alles lokal. Die ' +
-    'vollständige Text-/Bildbearbeitung zieht als nächstes Update ein.',
+    'pdfedit ändert bestehenden Text direkt auf der Seite, markiert, ' +
+    'kommentiert und zeichnet mit wählbarer Farbe, Größe und Schrift ' +
+    '(auch Systemschriften), erstellt und füllt Formulare aus, signiert ' +
+    'digital per Zertifikat, schützt mit Passwort, bettet unsichtbare ' +
+    'Wasserzeichen ein, organisiert Seiten per Drag & Drop, komprimiert, ' +
+    'schwärzt (schwarz oder verpixelt) und erkennt Text per OCR — alles ' +
+    'lokal. Fließtext-Bearbeitung mit Umbruch zieht als nächstes Update ein.',
   openPdf: 'PDF öffnen',
   newPdf: 'Neues PDF',
   dropHint: 'Oder eine PDF-Datei einfach ins Fenster ziehen.',
@@ -234,18 +235,74 @@ const de = {
   pwPromptOpen: 'Öffnen',
   pwPromptPlaceholder: 'Passwort',
   helpVersion: (v: string) => `pdfedit v${v}`,
+  // redact style
+  redactStyleLabel: 'Darstellung',
+  redactStyleBlack: 'Schwarz übermalen',
+  redactStylePixelate: 'Verpixeln (Mosaik)',
+  redactStylePixelateHint:
+    'Auch beim Verpixeln wird der Originalinhalt entfernt (die Seite wird zum Bild). Aber: Verpixelter Text lässt sich manchmal rekonstruieren — für wirklich Sensibles ist Schwarz die sichere Wahl.',
+  // freetext fonts
+  propFont: 'Schrift',
+  fontDefault: 'Helvetica (Standard)',
+  fontTimes: 'Times',
+  fontCourier: 'Courier',
+  fontSystemGroup: 'Systemschriften',
+  fontLoadError: 'Schrift konnte nicht geladen werden',
+  fontsLoading: 'Lade Schriften …',
+  // page drag & drop
+  sidebarDragHint: 'Ziehen zum Umsortieren',
+  pageMoveError: 'Seite konnte nicht verschoben werden',
+  // invisible watermark
+  wmButton: 'Wasserzeichen',
+  wmTitle: 'Unsichtbares Wasserzeichen',
+  wmEmbedTab: 'Einbetten',
+  wmVerifyTab: 'Prüfen',
+  wmIntro:
+    'Bettet ein PNG (Transparenz bleibt erhalten) unsichtbar in die Seiten ein und vermerkt es pro Seite. Beim Prüfen fallen Seiten ohne Wasserzeichen, umsortierte Seiten und fremde Wasserzeichen sofort auf — so lassen sich ausgetauschte Seiten erkennen.',
+  wmPickPng: 'PNG wählen …',
+  wmScope: 'Seiten',
+  wmApply: 'Einbetten & übernehmen',
+  wmApplying: 'Bette ein …',
+  wmApplied: 'Wasserzeichen eingebettet — Speichern nicht vergessen.',
+  wmError: 'Wasserzeichen fehlgeschlagen',
+  wmHonestNote:
+    'Einordnung: Das ist Manipulations-Erkennung für den Alltag, kein kryptografischer Beweis — wer das Schema kennt, kann Markierungen kopieren. Für belastbare Integrität zusätzlich digital signieren.',
+  wmReportSummary: (marked: number, total: number) =>
+    `${marked} von ${total} Seiten tragen ein Wasserzeichen.`,
+  wmReportUnmarked: (pages: string) =>
+    `Ohne Wasserzeichen (möglicherweise ausgetauscht): Seite ${pages}`,
+  wmReportMoved: (entries: string) => `Umsortiert: ${entries}`,
+  wmMovedEntry: (now: number, was: number) => `Seite ${now} (war Position ${was})`,
+  wmReportMixed: 'Achtung: Die Seiten tragen unterschiedliche Wasserzeichen — vermischte Herkunft.',
+  wmReportAllGood: 'Alle Seiten tragen dasselbe Wasserzeichen an der erwarteten Position.',
+  wmVerifyPngTitle: 'Gegen Original-PNG prüfen (optional)',
+  wmPngMatches: 'Das Wasserzeichen stammt von diesem PNG.',
+  wmPngMismatch: (pages: string) => `Wasserzeichen passt NICHT zu diesem PNG auf Seite ${pages}.`,
+  // in-place line editing
+  textEditButton: 'Text ändern',
+  textEditHint:
+    'Eine Textzeile auf der Seite anklicken — dann Tippfehler korrigieren, Farbe, Größe und Schrift ändern.',
+  textEditTitle: 'Textzeile ändern',
+  textEditNewText: 'Text',
+  textEditApply: 'Übernehmen',
+  textEditApplying: 'Wende an …',
+  textEditNote:
+    'Die Originalzeile wird mit der Hintergrundfarbe der Seite überdeckt und der neue Text als echter, durchsuchbarer Text daraufgesetzt. Ehrlich gesagt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen), und Schriftart/Laufweite des Originals werden nicht immer exakt getroffen.',
+  textEditNoText: 'An dieser Stelle wurde keine Textzeile gefunden — bitte direkt auf Text klicken.',
+  textEditError: 'Text ändern fehlgeschlagen',
 };
 
 const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit opens multiple PDFs in tabs, highlights, annotates and draws ' +
-    'with selectable color and size, creates and fills out forms, signs ' +
-    'digitally with a certificate, protects documents with a password ' +
-    '(and removes passwords again), organizes pages, compresses, ' +
-    'permanently redacts and recognizes text via OCR — all locally. ' +
-    'Full text/image editing arrives as the next update.',
+    'pdfedit edits existing text right on the page, highlights, annotates ' +
+    'and draws with selectable color, size and font (system fonts too), ' +
+    'creates and fills out forms, signs digitally with a certificate, ' +
+    'protects with a password, embeds invisible watermarks, reorders ' +
+    'pages via drag & drop, compresses, redacts (black or pixelated) and ' +
+    'recognizes text via OCR — all locally. Reflow text editing arrives ' +
+    'as the next update.',
   openPdf: 'Open PDF',
   newPdf: 'New PDF',
   dropHint: 'Or just drop a PDF file into the window.',
@@ -470,6 +527,59 @@ const en: typeof de = {
   pwPromptOpen: 'Open',
   pwPromptPlaceholder: 'Password',
   helpVersion: (v: string) => `pdfedit v${v}`,
+  // redact style
+  redactStyleLabel: 'Style',
+  redactStyleBlack: 'Solid black',
+  redactStylePixelate: 'Pixelate (mosaic)',
+  redactStylePixelateHint:
+    'Pixelation also removes the original content (the page becomes an image). But: pixelated text can sometimes be reconstructed — for truly sensitive content, black is the safe choice.',
+  // freetext fonts
+  propFont: 'Font',
+  fontDefault: 'Helvetica (default)',
+  fontTimes: 'Times',
+  fontCourier: 'Courier',
+  fontSystemGroup: 'System fonts',
+  fontLoadError: 'Could not load the font',
+  fontsLoading: 'Loading fonts …',
+  // page drag & drop
+  sidebarDragHint: 'Drag to reorder',
+  pageMoveError: 'Could not move the page',
+  // invisible watermark
+  wmButton: 'Watermark',
+  wmTitle: 'Invisible watermark',
+  wmEmbedTab: 'Embed',
+  wmVerifyTab: 'Verify',
+  wmIntro:
+    'Embeds a PNG (transparency preserved) invisibly into the pages and records it per page. Verification immediately surfaces pages without the mark, reordered pages and foreign marks — making swapped pages detectable.',
+  wmPickPng: 'Choose PNG …',
+  wmScope: 'Pages',
+  wmApply: 'Embed & apply',
+  wmApplying: 'Embedding …',
+  wmApplied: 'Watermark embedded — remember to save.',
+  wmError: 'Watermark failed',
+  wmHonestNote:
+    'For context: this is everyday tamper evidence, not cryptographic proof — someone who knows the scheme can copy the marks. For hard integrity, additionally sign digitally.',
+  wmReportSummary: (marked: number, total: number) =>
+    `${marked} of ${total} pages carry a watermark.`,
+  wmReportUnmarked: (pages: string) => `Without watermark (possibly swapped in): page ${pages}`,
+  wmReportMoved: (entries: string) => `Reordered: ${entries}`,
+  wmMovedEntry: (now: number, was: number) => `page ${now} (was position ${was})`,
+  wmReportMixed: 'Warning: pages carry different watermarks — mixed origin.',
+  wmReportAllGood: 'All pages carry the same watermark at the expected position.',
+  wmVerifyPngTitle: 'Check against the original PNG (optional)',
+  wmPngMatches: 'The watermark comes from this PNG.',
+  wmPngMismatch: (pages: string) => `Watermark does NOT match this PNG on page ${pages}.`,
+  // in-place line editing
+  textEditButton: 'Edit text',
+  textEditHint: 'Click a text line on the page — then fix typos, change color, size and font.',
+  textEditTitle: 'Edit text line',
+  textEditNewText: 'Text',
+  textEditApply: 'Apply',
+  textEditApplying: 'Applying …',
+  textEditNote:
+    'The original line is covered with the page background color and the new text is placed on top as real, searchable text. Honestly: the original remains invisibly in the file (remove for good: redaction), and the original typeface/letter spacing is not always matched exactly.',
+  textEditNoText: 'No text line found at this spot — please click directly on text.',
+  textEditError: 'Edit text failed',
 };
 
 export const t = navigator.language.toLowerCase().startsWith('de') ? de : en;

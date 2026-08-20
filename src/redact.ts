@@ -10,8 +10,15 @@ export interface RedactMark {
   hPct: number;
 }
 
+export type RedactStyle = 'black' | 'pixelate';
+
 export interface RedactOptions {
   cleanMetadata: boolean;
+  /** 'black' paints solid boxes; 'pixelate' mosaics the region instead.
+   *  Both destroy the original content (the page becomes an image) — but
+   *  pixelation of text can sometimes be reconstructed, which the confirm
+   *  dialog says out loud; black stays the safe default. */
+  style: RedactStyle;
 }
 
 // Rendered at 3x (~216 DPI off a 72pt page) — sharp enough that the
@@ -65,14 +72,32 @@ export const redactPdf = async (
 
     await page.render({ canvas, viewport: rasterViewport }).promise;
 
-    ctx.fillStyle = '#000000';
     for (const mark of marks) {
-      ctx.fillRect(
-        mark.xPct * canvas.width,
-        mark.yPct * canvas.height,
-        mark.wPct * canvas.width,
-        mark.hPct * canvas.height
-      );
+      const x = Math.floor(mark.xPct * canvas.width);
+      const y = Math.floor(mark.yPct * canvas.height);
+      const w = Math.max(1, Math.ceil(mark.wPct * canvas.width));
+      const h = Math.max(1, Math.ceil(mark.hPct * canvas.height));
+      if (opts.style === 'pixelate') {
+        // mosaic: shrink the region hard, blow it back up without
+        // smoothing — big blocks (≥ ~16 source pixels each) so glyph
+        // shapes are destroyed, not just softened
+        const block = Math.max(16, Math.round(Math.min(w, h) / 6));
+        const tw = Math.max(1, Math.round(w / block));
+        const th = Math.max(1, Math.round(h / block));
+        const tiny = document.createElement('canvas');
+        tiny.width = tw;
+        tiny.height = th;
+        const tctx = tiny.getContext('2d');
+        if (!tctx) continue;
+        tctx.imageSmoothingEnabled = true;
+        tctx.drawImage(canvas, x, y, w, h, 0, 0, tw, th);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tiny, 0, 0, tw, th, x, y, w, h);
+        ctx.imageSmoothingEnabled = true;
+      } else {
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, y, w, h);
+      }
     }
 
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));

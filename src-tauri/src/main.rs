@@ -54,6 +54,105 @@ async fn write_pdf(path: String, data_b64: String) -> Result<(), String> {
 }
 
 #[derive(Serialize)]
+pub struct SystemFontDto {
+    pub name: String,
+    pub path: String,
+}
+
+/// Enumerate installed system fonts (TTF/OTF only — TrueType collections
+/// and bitmap formats are skipped because the embedding pipeline in the
+/// frontend can't subset them). Names are the file stems; good enough to
+/// pick a font, without parsing every font's name table.
+#[tauri::command]
+async fn list_system_fonts() -> Result<Vec<SystemFontDto>, String> {
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    #[cfg(target_os = "macos")]
+    {
+        dirs.push("/System/Library/Fonts".into());
+        dirs.push("/System/Library/Fonts/Supplemental".into());
+        dirs.push("/Library/Fonts".into());
+        if let Some(home) = std::env::var_os("HOME") {
+            dirs.push(std::path::PathBuf::from(home).join("Library/Fonts"));
+        }
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(win) = std::env::var_os("WINDIR") {
+            dirs.push(std::path::PathBuf::from(win).join("Fonts"));
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            dirs.push(std::path::PathBuf::from(local).join("Microsoft/Windows/Fonts"));
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        dirs.push("/usr/share/fonts".into());
+        dirs.push("/usr/local/share/fonts".into());
+        if let Some(home) = std::env::var_os("HOME") {
+            dirs.push(std::path::PathBuf::from(&home).join(".fonts"));
+            dirs.push(std::path::PathBuf::from(&home).join(".local/share/fonts"));
+        }
+    }
+
+    let mut fonts: Vec<SystemFontDto> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for dir in dirs {
+        collect_fonts(&dir, 0, &mut fonts, &mut seen);
+    }
+    fonts.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    Ok(fonts)
+}
+
+fn collect_fonts(
+    dir: &std::path::Path,
+    depth: u8,
+    out: &mut Vec<SystemFontDto>,
+    seen: &mut std::collections::HashSet<String>,
+) {
+    if depth > 2 {
+        return; // Linux font dirs nest by family; anything deeper is noise
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_fonts(&path, depth + 1, out, seen);
+            continue;
+        }
+        let ext = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase());
+        if !matches!(ext.as_deref(), Some("ttf") | Some("otf")) {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if seen.insert(stem.to_lowercase()) {
+            out.push(SystemFontDto {
+                name: stem.to_string(),
+                path: path.to_string_lossy().to_string(),
+            });
+        }
+    }
+}
+
+/// Read a font file's raw bytes (for embedding into the PDF). Restricted to
+/// .ttf/.otf so this command can't be used as a generic file reader.
+#[tauri::command]
+async fn read_font(path: String) -> Result<tauri::ipc::Response, String> {
+    let lower = path.to_lowercase();
+    if !lower.ends_with(".ttf") && !lower.ends_with(".otf") {
+        return Err("not a font file".into());
+    }
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
+#[derive(Serialize)]
 pub struct UpdateInfoDto {
     pub version: String,
     pub notes: Option<String>,
@@ -105,6 +204,8 @@ fn main() {
             read_pdf,
             pick_save_pdf,
             write_pdf,
+            list_system_fonts,
+            read_font,
             check_update,
             install_update
         ])

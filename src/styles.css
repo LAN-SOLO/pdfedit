@@ -1094,3 +1094,87 @@ button.big {
   background: var(--blue, #38bdf8);
   border: 1.5px solid var(--bg, #0b1220);
 }
+
+/* WKWebView-Fallback: pdf.js' Löschen-Icon in der schwebenden Editor-
+   Toolbar blieb in der Desktop-App leer (nur dort — Chrome rendert es).
+   Eigenes, selbst-enthaltenes Icon als background-image, unabhängig von
+   Maske, CSS-Nesting-Feinheiten und light-dark(). */
+.editToolbar button.deleteButton::before {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+  background-color: transparent !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none' stroke='%23fbfbfe' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2.5 0-.7 9.1A1.5 1.5 0 0 1 12.3 16.5H7.7a1.5 1.5 0 0 1-1.5-1.4L5.5 6M8.3 9v4.5M11.7 9v4.5'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: 15px 15px !important;
+}
+
+/* ---------- v0.11.1: font select, sidebar drag & drop ---------- */
+
+.fontselect {
+  max-width: 170px;
+  padding: 4px 6px;
+  font: inherit;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+  background: #16233c;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* live preview of the chosen Text-tool font inside pdf.js' editor */
+.freeTextEditor .internal {
+  font-family: var(--pdfedit-ft-font, Helvetica, Arial, sans-serif);
+}
+
+.sidebar-thumb.dragging {
+  opacity: 0.45;
+}
+
+.sidebar-thumb.dragover {
+  outline: 2px dashed var(--blue, #38bdf8);
+  outline-offset: 2px;
+}
+
+/* ---------- v0.11.2: in-place text editing ---------- */
+
+.pdfjs-container.textediting .textLayer span {
+  cursor: text;
+}
+
+.pdfjs-container.textediting .page {
+  cursor: crosshair;
+}
+
+.textedit-preview {
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-height: 24px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.swatchrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.colorwell {
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+/* overlay anchor: borderless, exactly canvas-sized (see pageAnchor()) */
+.page .canvasWrapper {
+  position: relative;
+}
