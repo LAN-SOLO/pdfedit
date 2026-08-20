@@ -16,13 +16,23 @@ import CompressDialog from './CompressDialog';
 import { compressPdf, type CompressPreset } from '../compress';
 import RedactConfirmDialog from './RedactConfirmDialog';
 import { redactPdf, type RedactMark, type RedactStyle } from '../redact';
-import Sidebar from './Sidebar';
+import Sidebar, { type AnnotObject } from './Sidebar';
 import OcrDialog, { type OcrScope } from './OcrDialog';
 import { ocrPdf, type OcrLang, type OcrProgress } from '../ocr';
 import EditRegionDialog from './EditRegionDialog';
 import { applyRegionEdit, type EditContent, type EditRegion } from '../regionEdit';
 import FormFieldDialog from './FormFieldDialog';
-import { addFormField, FieldNameTakenError, suggestFieldName, type FieldRegion, type FieldSpec } from '../formFields';
+import {
+  addFormField,
+  FieldNameTakenError,
+  listFormFields,
+  removeFormField,
+  suggestFieldName,
+  updateFormField,
+  type FieldRegion,
+  type FieldSpec,
+  type FieldSummary,
+} from '../formFields';
 import SignDialog, { type SignRequest } from './SignDialog';
 import { signPdf, type SignRegion } from '../sign';
 import ProtectDialog from './ProtectDialog';
@@ -336,6 +346,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   // password protection
   const [showProtect, setShowProtect] = useState(false);
   const [protectBusy, setProtectBusy] = useState(false);
+  // objects panel (annotations + form fields)
+  const [objectsVersion, setObjectsVersion] = useState(0);
+  const [annotObjects, setAnnotObjects] = useState<AnnotObject[]>([]);
+  const [fieldList, setFieldList] = useState<FieldSummary[]>([]);
+  const [editingField, setEditingField] = useState<FieldSummary | null>(null);
   // in-place line editing
   const [editingText, setEditingText] = useState(false);
   const [pendingRunEdit, setPendingRunEdit] = useState<PendingRunEdit | null>(null);
@@ -424,6 +439,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     };
     const onEditorState = (e: { hasSomethingToUndo?: boolean }) => {
       if (e?.hasSomethingToUndo) markDirty();
+      setObjectsVersion((v) => v + 1);
     };
     // AcroForm field edits (text/checkbox/radio/dropdown) are native inputs
     // rendered by the annotation layer — they don't go through the editor
@@ -752,7 +768,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const onUp = () => window.setTimeout(recordFreetextEditors, 60);
+    const onUp = () =>
+      window.setTimeout(() => {
+        recordFreetextEditors();
+        setObjectsVersion((v) => v + 1);
+      }, 60);
     container.addEventListener('pointerup', onUp, true);
     return () => container.removeEventListener('pointerup', onUp, true);
   }, [recordFreetextEditors, data]);
@@ -847,6 +867,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     resetDragModes();
     const pdfViewer = pdfViewerRef.current;
     if (pdfViewer) pdfViewer.annotationEditorMode = { mode: TOOL_MODE[next] };
+    // switching to Select must really let go: deselect any editor so its
+    // floating toolbar/handles disappear and no tool keeps drawing
+    if (next === 'select') uiManager()?.unselectAll();
   };
 
   const enterDragMode = (wasActive: boolean, set: (v: boolean) => void) => {
@@ -862,15 +885,19 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const togglePlaceField = () => enterDragMode(placingField, setPlacingField);
   const toggleTextEdit = () => enterDragMode(editingText, setEditingText);
 
+  /** pdf.js's AnnotationEditorUIManager — not part of PDFViewer's public
+   *  d.ts (reached via `_layerProperties`, the same stability class as the
+   *  `_pages` access above), hence the cast. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const uiManager = (): any =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (pdfViewerRef.current as any)?._layerProperties?.annotationEditorUIManager;
+
   /** Pushes a tool default (color, size, …) into pdf.js's editor UI
    *  manager — applies to the current selection or, without one, becomes
-   *  the default for the next created annotation. The manager isn't part
-   *  of PDFViewer's public d.ts (reached via `_layerProperties`, the same
-   *  stability class as the `_pages` access above), hence the cast. */
+   *  the default for the next created annotation. */
   const updateEditorParam = (type: number, value: unknown) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ui = (pdfViewerRef.current as any)?._layerProperties?.annotationEditorUIManager;
-    ui?.updateParams(type, value);
+    uiManager()?.updateParams(type, value);
   };
 
   const zoom = (dir: 1 | -1) => {
@@ -1461,6 +1488,131 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  // ---- objects panel ------------------------------------------------------
+  // Session annotations from pdf.js's editor registry; refreshed whenever
+  // the editor state changes (create/edit/delete/undo).
+  useEffect(() => {
+    if (!ready) {
+      setAnnotObjects([]);
+      return;
+    }
+    const ui = uiManager();
+    const pdfViewer = pdfViewerRef.current;
+    if (!ui || !pdfViewer) return;
+    const list: AnnotObject[] = [];
+    for (let p = 0; p < pdfViewer.pagesCount; p++) {
+      try {
+        for (const e of ui.getEditors(p)) {
+          if (typeof e.isEmpty === 'function' && e.isEmpty()) continue;
+          const type: string = e.constructor?._type ?? 'annotation';
+          const text = (e.div?.textContent ?? '').replace(/\s+/g, ' ').trim();
+          list.push({
+            id: e.id,
+            type,
+            label: text.slice(0, 40) || (t.objTypeLabels[type] ?? type),
+            pageIndex: e.pageIndex ?? p,
+          });
+        }
+      } catch {
+        // page's editor layer not built yet — it will bump the version later
+      }
+    }
+    setAnnotObjects(list);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectsVersion, ready]);
+
+  // Document form fields (they only change when the working bytes change)
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    void listFormFields(data).then((f) => {
+      if (!cancelled) setFieldList(f);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [data, ready]);
+
+  const findEditor = (id: string) => {
+    const ui = uiManager();
+    const pdfViewer = pdfViewerRef.current;
+    if (!ui || !pdfViewer) return null;
+    for (let p = 0; p < pdfViewer.pagesCount; p++) {
+      try {
+        for (const e of ui.getEditors(p)) if (e.id === id) return e;
+      } catch {
+        // ignore unbuilt pages
+      }
+    }
+    return null;
+  };
+
+  const selectObject = (id: string) => {
+    const e = findEditor(id);
+    const pdfViewer = pdfViewerRef.current;
+    if (!e || !pdfViewer) return;
+    resetDragModes();
+    jumpToPage((e.pageIndex ?? 0) + 1);
+    // interacting with an editor needs its layer in the matching mode —
+    // the switch is async inside pdf.js, so select after a beat
+    const toolFor: Record<string, Tool> = { freetext: 'freetext', ink: 'ink', highlight: 'highlight' };
+    const type: string = e.constructor?._type ?? '';
+    setTool(toolFor[type] ?? 'select');
+    pdfViewer.annotationEditorMode = { mode: e.mode };
+    window.setTimeout(() => uiManager()?.setSelected(e), 150);
+  };
+
+  const deleteObject = (id: string) => {
+    const e = findEditor(id);
+    const pdfViewer = pdfViewerRef.current;
+    const ui = uiManager();
+    if (!e || !pdfViewer || !ui) return;
+    pdfViewer.annotationEditorMode = { mode: e.mode };
+    window.setTimeout(() => {
+      ui.setSelected(e);
+      ui.delete();
+      setObjectsVersion((v) => v + 1);
+      // pdf.js detaches the editor asynchronously — refresh once more
+      window.setTimeout(() => setObjectsVersion((v) => v + 1), 300);
+    }, 150);
+  };
+
+  const doDeleteField = async (name: string) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      const out = await removeFormField(bytes, name);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(out);
+    } catch (err) {
+      onError(`${t.formFieldError}: ${String(err)}`);
+    }
+  };
+
+  const doEditFieldApply = async (spec: FieldSpec) => {
+    const pdfViewer = pdfViewerRef.current;
+    const field = editingField;
+    if (!pdfViewer?.pdfDocument || !field?.region) return;
+    setFieldBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await saveWithFonts();
+      const out = await updateFormField(bytes, field.name, field.region, spec);
+      setEditingField(null);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(out);
+    } catch (err) {
+      if (err instanceof FieldNameTakenError) onError(t.formFieldNameTaken);
+      else onError(`${t.formFieldError}: ${String(err)}`);
+    } finally {
+      setFieldBusy(false);
+    }
+  };
+
   const openWatermark = async () => {
     setWmReport(null);
     setShowWatermark(true);
@@ -1742,6 +1894,25 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
               />
             );
           })}
+          <input
+            type="color"
+            className="colorwell"
+            value={tool === 'highlight' ? highlightColor : tool === 'freetext' ? freetextColor : inkColor}
+            title={t.propColor}
+            onChange={(e) => {
+              const c = e.target.value;
+              if (tool === 'highlight') {
+                setHighlightColor(c);
+                updateEditorParam(AnnotationEditorParamsType.HIGHLIGHT_COLOR, c);
+              } else if (tool === 'freetext') {
+                setFreetextColor(c);
+                updateEditorParam(AnnotationEditorParamsType.FREETEXT_COLOR, c);
+              } else {
+                setInkColor(c);
+                updateEditorParam(AnnotationEditorParamsType.INK_COLOR, c);
+              }
+            }}
+          />
           {tool === 'freetext' && (
             <>
               <span className="proplabel">{t.propFont}</span>
@@ -1906,6 +2077,12 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             onJump={jumpToPage}
             onOpenPages={() => setShowPages(true)}
             onMove={doMovePage}
+            objects={annotObjects}
+            fields={fieldList}
+            onSelectObject={selectObject}
+            onDeleteObject={deleteObject}
+            onEditField={setEditingField}
+            onDeleteField={(name) => void doDeleteField(name)}
           />
         )}
         <div className="pdfjs-outer">
@@ -1968,6 +2145,21 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           busy={fieldBusy}
           onCreate={doAddField}
           onCancel={() => setPendingFieldRegion(null)}
+        />
+      )}
+
+      {editingField && (
+        <FormFieldDialog
+          suggestedName={editingField.name}
+          initial={{
+            kind: editingField.kind,
+            name: editingField.name,
+            options: editingField.options,
+            defaultValue: editingField.defaultValue,
+          }}
+          busy={fieldBusy}
+          onCreate={doEditFieldApply}
+          onCancel={() => setEditingField(null)}
         />
       )}
 

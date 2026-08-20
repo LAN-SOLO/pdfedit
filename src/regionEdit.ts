@@ -71,16 +71,23 @@ export const applyRegionEdit = async (
     const text = content.text.trim();
     if (text) {
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const fontSize = Math.max(6, rh * 0.75);
+      // Sensible size instead of "as tall as the box": cap at 18pt (a tall
+      // box means a text block, not banner letters), shrink further when a
+      // single line would overflow the width, and let long text wrap.
+      const fontSize = Math.min(Math.max(6, rh * 0.75), 18);
       const naturalWidth = font.widthOfTextAtSize(text, fontSize) || rw;
-      const size = naturalWidth > rw ? Math.max(6, fontSize * (rw / naturalWidth)) : fontSize;
+      const size =
+        naturalWidth > rw && !text.includes(' ')
+          ? Math.max(6, fontSize * (rw / naturalWidth))
+          : fontSize;
       newPage.drawText(text, {
-        x: rx,
-        y: ry + (rh - size) / 2,
+        x: rx + 2,
+        y: ry + rh - size * 1.05,
         size,
         font,
         color: rgb(0, 0, 0),
-        maxWidth: rw,
+        maxWidth: Math.max(10, rw - 4),
+        lineHeight: size * 1.3,
       });
     }
   } else {

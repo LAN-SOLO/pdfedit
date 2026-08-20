@@ -10,14 +10,16 @@ export interface RedactMark {
   hPct: number;
 }
 
-export type RedactStyle = 'black' | 'pixelate';
+export type RedactStyle = 'black' | 'pixelate' | 'blur';
 
 export interface RedactOptions {
   cleanMetadata: boolean;
-  /** 'black' paints solid boxes; 'pixelate' mosaics the region instead.
-   *  Both destroy the original content (the page becomes an image) — but
-   *  pixelation of text can sometimes be reconstructed, which the confirm
-   *  dialog says out loud; black stays the safe default. */
+  /** 'black' paints solid boxes; 'pixelate' mosaics the region; 'blur'
+   *  softens it (repeated smoothed down/upscale — a real gaussian-ish
+   *  blur that works in every canvas engine, no ctx.filter needed).
+   *  All three destroy the original content (the page becomes an image)
+   *  — but blurred/pixelated text can sometimes be reconstructed, which
+   *  the confirm dialog says out loud; black stays the safe default. */
   style: RedactStyle;
 }
 
@@ -77,10 +79,10 @@ export const redactPdf = async (
       const y = Math.floor(mark.yPct * canvas.height);
       const w = Math.max(1, Math.ceil(mark.wPct * canvas.width));
       const h = Math.max(1, Math.ceil(mark.hPct * canvas.height));
-      if (opts.style === 'pixelate') {
-        // mosaic: shrink the region hard, blow it back up without
-        // smoothing — big blocks (≥ ~16 source pixels each) so glyph
-        // shapes are destroyed, not just softened
+      if (opts.style === 'pixelate' || opts.style === 'blur') {
+        // both shrink the region hard and blow it back up — pixelate
+        // without smoothing (hard mosaic blocks), blur with smoothing in
+        // two passes (soft gaussian-ish result)
         const block = Math.max(16, Math.round(Math.min(w, h) / 6));
         const tw = Math.max(1, Math.round(w / block));
         const th = Math.max(1, Math.round(h / block));
@@ -91,9 +93,21 @@ export const redactPdf = async (
         if (!tctx) continue;
         tctx.imageSmoothingEnabled = true;
         tctx.drawImage(canvas, x, y, w, h, 0, 0, tw, th);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(tiny, 0, 0, tw, th, x, y, w, h);
-        ctx.imageSmoothingEnabled = true;
+        if (opts.style === 'blur') {
+          const mid = document.createElement('canvas');
+          mid.width = Math.max(1, Math.round(w / 4));
+          mid.height = Math.max(1, Math.round(h / 4));
+          const mctx = mid.getContext('2d');
+          if (!mctx) continue;
+          mctx.imageSmoothingEnabled = true;
+          mctx.drawImage(tiny, 0, 0, tw, th, 0, 0, mid.width, mid.height);
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(mid, 0, 0, mid.width, mid.height, x, y, w, h);
+        } else {
+          ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(tiny, 0, 0, tw, th, x, y, w, h);
+          ctx.imageSmoothingEnabled = true;
+        }
       } else {
         ctx.fillStyle = '#000000';
         ctx.fillRect(x, y, w, h);

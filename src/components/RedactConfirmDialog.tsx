@@ -46,7 +46,19 @@ export default function RedactConfirmDialog({ markCount, onConfirm, onCancel, bu
             />
             {t.redactStylePixelate}
           </label>
-          {style === 'pixelate' && <p className="faint dialoghint">{t.redactStylePixelateHint}</p>}
+          <label className="checkrow">
+            <input
+              type="radio"
+              name="redactstyle"
+              checked={style === 'blur'}
+              onChange={() => setStyle('blur')}
+              disabled={busy}
+            />
+            {t.redactStyleBlur}
+          </label>
+          {(style === 'pixelate' || style === 'blur') && (
+            <p className="faint dialoghint">{t.redactStylePixelateHint}</p>
+          )}
           <label className="checkrow">
             <input
               type="checkbox"

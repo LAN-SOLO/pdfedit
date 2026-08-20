@@ -482,6 +482,44 @@ entsprechend mehr Testzeit.
   - **Lektion (Browser-E2E):** Das Tutorial-Overlay (SEEN_KEY-Bump!)
     fängt nach jedem frischen Origin den ersten Klick ab — vor jedem
     E2E-Lauf `.hlp-close` klicken.
+- **v0.11.4 — Objekte-Panel & Feinschliff-Runde ✅ (User-Feedback-Batch):**
+  - **Objekte-Panel:** Seitenleiste mit zwei Tabs („Seiten"/„Objekte").
+    Der Objekte-Tab listet Sitzungs-Anmerkungen (über pdf.js'
+    `uiManager.getEditors(page)` — ein Generator! — mit `id`,
+    `constructor._type`, `div.textContent` als Label) und die
+    Formularfelder des Dokuments (`listFormFields` via pdf-lib inkl.
+    Widget-Rect→Seiten-Zuordnung). Klick = `setSelected` (nach
+    Modus-Wechsel + ~150 ms, der Wechsel ist async), × = `ui.delete()`
+    (undo-fähig; Liste braucht einen verzögerten Zweit-Refresh, pdf.js
+    hängt den Editor asynchron aus). Felder: Klick öffnet den
+    FormFieldDialog im Edit-Modus (updateFormField = remove+recreate am
+    selben Widget-Rect), × löscht via `form.removeField`. Photoshop-artige
+    Gruppen/Z-Reihenfolge bewusst Roadmap — steht so im Handbuch.
+  - **Select-Werkzeug lässt wirklich los:** `unselectAll()` beim Wechsel
+    auf Auswahl — vorher blieben Stempel-Griffe sichtbar und ein aktives
+    Freihand-Markieren konnte weiterzeichnen.
+  - **Voller Farbwähler überall:** `<input type="color">` neben den
+    Swatches für Markieren/Text/Zeichnen (und im Text-ändern- und
+    Stempel-Dialog). Verifiziert: pdf.js akzeptiert freie
+    Highlight-Farben jenseits der konfigurierten Preset-Liste
+    (Editor.color = #8b5cf6).
+  - **Schwärzen: echtes Weichzeichnen** als dritte Variante (zweistufiges
+    geglättetes Down/Upscale — funktioniert ohne ctx.filter überall),
+    Verpixeln bleibt, Warnhinweis gilt für beide.
+  - **„Bearbeiten" → „Ersetzen"** (der Button beschrieb nie Bearbeitung),
+    Ersatztext im Bereich jetzt oben-links, max. 18 pt, mit Umbruch statt
+    boxhoher Riesenbuchstaben.
+  - **Stempel-Tippen ausgebaut:** Schriftwahl (Schreibschrift, Handschrift,
+    Serifen, Serifenlos, Marker), Größe, Farbe inkl. Farbwähler; Canvas
+    wird passgenau zum Text bemessen (2x für Schärfe).
+  - **Formularfelder entschärft:** einzeilige Felder und Dropdowns bekommen
+    Standard-Kontrollhöhe (18–32 pt, oben im aufgezogenen Kasten) und
+    feste 11-pt-Schrift statt riesiger Auto-Skalierung; Checkboxen auf
+    26 pt gedeckelt.
+  - **Löschen-Icon der Editor-Toolbar, dritter Anlauf:** Das
+    ::before-Pseudo-Element entsteht in WKWebView offenbar gar nicht
+    (pdf.js' Nesting-Regeln) — Icon liegt jetzt als background-image
+    direkt auf dem Button, ::before wird unterdrückt.
 - **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das

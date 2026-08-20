@@ -12,8 +12,21 @@ interface Props {
  *  script font) and hands it off as a File — placement, moving and resizing
  *  on the page itself is then pdf.js's own Stamp editor, not ours (see
  *  PdfViewer.placeStamp). We only ever need to produce pixels. */
+const TYPE_FONTS: Record<'script' | 'hand' | 'serif' | 'sans' | 'marker', string> = {
+  script: "'Segoe Script', 'Snell Roundhand', 'Brush Script MT', cursive",
+  hand: "'Bradley Hand', 'Segoe Print', 'Comic Sans MS', cursive",
+  serif: "Georgia, 'Times New Roman', serif",
+  sans: 'Helvetica, Arial, sans-serif',
+  marker: "'Marker Felt', Impact, fantasy",
+};
+
+const TYPE_COLORS = ['#0B1220', '#1D4ED8', '#E11D48', '#16A34A', '#7C3AED'];
+
 export default function StampDialog({ onPlace, onClose }: Props) {
   const [mode, setMode] = useState<Mode>('draw');
+  const [typeFont, setTypeFont] = useState<keyof typeof TYPE_FONTS>('script');
+  const [typeColor, setTypeColor] = useState(TYPE_COLORS[0]);
+  const [typeSize, setTypeSize] = useState(64);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const last = useRef<[number, number] | null>(null);
@@ -79,14 +92,20 @@ export default function StampDialog({ onPlace, onClose }: Props) {
     const name = typedName.trim();
     if (!name) return;
     const canvas = document.createElement('canvas');
-    canvas.width = 600;
-    canvas.height = 160;
+    const font = `${typeSize * 2}px ${TYPE_FONTS[typeFont]}`;
+    // measure first so the stamp is cropped to its text (2x for sharpness)
+    const probe = document.createElement('canvas').getContext('2d');
+    if (!probe) return;
+    probe.font = font;
+    const metrics = probe.measureText(name);
+    canvas.width = Math.ceil(metrics.width) + 40;
+    canvas.height = Math.ceil(typeSize * 2 * 1.5);
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.font = "72px 'Segoe Script', 'Brush Script MT', cursive";
-    ctx.fillStyle = '#0b1220';
+    ctx.font = font;
+    ctx.fillStyle = typeColor;
     ctx.textBaseline = 'middle';
-    ctx.fillText(name, 20, canvas.height / 2, canvas.width - 40);
+    ctx.fillText(name, 20, canvas.height / 2);
     canvas.toBlob((blob) => {
       if (blob) onPlace(new File([blob], 'signature.png', { type: 'image/png' }));
     }, 'image/png');
@@ -157,8 +176,51 @@ export default function StampDialog({ onPlace, onClose }: Props) {
                 onChange={(e) => setTypedName(e.target.value)}
                 autoFocus
               />
+              <div className="stamp-typo-row">
+                <span className="proplabel">{t.stampFontLabel}</span>
+                <select
+                  className="fontselect"
+                  value={typeFont}
+                  onChange={(e) => setTypeFont(e.target.value as keyof typeof TYPE_FONTS)}
+                >
+                  {(Object.keys(TYPE_FONTS) as (keyof typeof TYPE_FONTS)[]).map((k) => (
+                    <option key={k} value={k}>
+                      {t.stampFonts[k]}
+                    </option>
+                  ))}
+                </select>
+                <span className="proplabel">{t.stampSizeLabel}</span>
+                <input
+                  type="range"
+                  min={24}
+                  max={120}
+                  value={typeSize}
+                  onChange={(e) => setTypeSize(Number(e.target.value))}
+                />
+              </div>
+              <div className="swatchrow">
+                <span className="proplabel">{t.stampColorLabel}</span>
+                {TYPE_COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={typeColor === c ? 'swatch active' : 'swatch'}
+                    style={{ background: c }}
+                    aria-label={c}
+                    onClick={() => setTypeColor(c)}
+                  />
+                ))}
+                <input
+                  type="color"
+                  className="colorwell"
+                  value={typeColor}
+                  onChange={(e) => setTypeColor(e.target.value)}
+                />
+              </div>
               {typedName.trim() && (
-                <div className="signaturepreview" style={{ fontFamily: "'Segoe Script','Brush Script MT',cursive" }}>
+                <div
+                  className="signaturepreview"
+                  style={{ fontFamily: TYPE_FONTS[typeFont], color: typeColor, fontSize: Math.min(56, typeSize) }}
+                >
                   {typedName}
                 </div>
               )}

@@ -4,19 +4,24 @@ import type { FieldKind, FieldSpec } from '../formFields';
 
 interface Props {
   suggestedName: string;
+  /** When set, the dialog edits an existing field (prefilled). */
+  initial?: FieldSpec | null;
   busy: boolean;
   onCreate: (spec: FieldSpec) => void;
   onCancel: () => void;
 }
 
-/** Opens after the user dragged the region for a new form field — collects
- *  type, name and type-specific options, then hands the spec back up. */
-export default function FormFieldDialog({ suggestedName, busy, onCreate, onCancel }: Props) {
-  const [kind, setKind] = useState<FieldKind>('text');
-  const [name, setName] = useState(suggestedName);
-  const [optionsText, setOptionsText] = useState('');
-  const [defaultValue, setDefaultValue] = useState('');
-  const [checked, setChecked] = useState(false);
+/** Opens after the user dragged the region for a new form field — or, in
+ *  edit mode, prefilled with an existing field's spec — collects type,
+ *  name and type-specific options, then hands the spec back up. */
+export default function FormFieldDialog({ suggestedName, initial, busy, onCreate, onCancel }: Props) {
+  const [kind, setKind] = useState<FieldKind>(initial?.kind ?? 'text');
+  const [name, setName] = useState(initial?.name ?? suggestedName);
+  const [optionsText, setOptionsText] = useState(initial?.options.join('\n') ?? '');
+  const [defaultValue, setDefaultValue] = useState(
+    initial && initial.kind !== 'checkbox' ? initial.defaultValue : ''
+  );
+  const [checked, setChecked] = useState(initial?.kind === 'checkbox' && initial.defaultValue === 'on');
 
   const canCreate = name.trim().length > 0 && !busy;
 
@@ -34,7 +39,7 @@ export default function FormFieldDialog({ suggestedName, busy, onCreate, onCance
     <div className="overlay" onClick={onCancel}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
-          <h3>{t.formFieldTitle}</h3>
+          <h3>{initial ? t.formFieldEditTitle : t.formFieldTitle}</h3>
           <button className="ghost" onClick={onCancel}>
             ×
           </button>
@@ -91,7 +96,7 @@ export default function FormFieldDialog({ suggestedName, busy, onCreate, onCance
         <div className="mfoot">
           <button onClick={onCancel}>{t.cancel}</button>
           <button className="primary" onClick={create} disabled={!canCreate}>
-            {busy ? t.formFieldCreating : t.formFieldCreate}
+            {busy ? t.formFieldCreating : initial ? t.formFieldSave : t.formFieldCreate}
           </button>
         </div>
       </div>

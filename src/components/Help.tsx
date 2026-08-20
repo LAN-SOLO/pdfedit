@@ -153,12 +153,22 @@ const de: Content = {
       body: [
         'Markieren, Text und Zeichnen legen echte ISO-32000-Anmerkungen an — sie bleiben in Acrobat & Co. sichtbar und dort weiter bearbeitbar.',
         'Sobald eines dieser Werkzeuge aktiv ist, erscheint die Eigenschaften-Leiste:',
-        '• Farbe — Farbfelder anklicken; wirkt auf neue und auf gerade ausgewählte Anmerkungen',
+        '• Farbe — Farbfelder anklicken oder über den Farbwähler jede beliebige Farbe wählen; wirkt auf neue und auf gerade ausgewählte Anmerkungen',
         '• Größe — Schriftgröße des Text-Werkzeugs',
         '• Stärke & Deckkraft — Strichbreite und Transparenz beim Zeichnen',
         '• Stärke beim Markieren — gilt für freies Markieren neben Text',
         '• Schrift beim Text-Werkzeug — Helvetica (Standard), Times, Courier oder jede installierte Systemschrift; die gewählte Schrift wird beim Speichern in die Datei eingebettet',
         'Grenze, ehrlich benannt: Bearbeitet ein anderes Programm die Textbox später, kann deren Darstellung auf die Standardschrift zurückfallen. Ausrichtung ist (noch) fest.',
+      ],
+    },
+    {
+      id: 'objects',
+      title: 'Objekte-Panel',
+      body: [
+        'Die Seitenleiste hat zwei Tabs: „Seiten" und „Objekte". Der Objekte-Tab listet alles, was du der Datei hinzugefügt hast:',
+        '• Anmerkungen dieser Sitzung (Text, Zeichnungen, Markierungen, Stempel) — anklicken wählt das Objekt auf der Seite aus (mit Greifpunkten zum Verschieben/Skalieren), × löscht es',
+        '• Formularfelder des Dokuments — anklicken öffnet „Formularfeld bearbeiten" (Typ, Name, Optionen, Vorbelegung ändern), × löscht das Feld',
+        'Ehrlich benannt: Anmerkungen aus früheren Sitzungen sind fest gespeichert und erscheinen nicht mehr als Objekte; Photoshop-artige Gruppen und Ebenen-Reihenfolge stehen auf der Roadmap.',
       ],
     },
     {
@@ -240,7 +250,7 @@ const de: Content = {
       body: [
         'Der Stempel-Dialog setzt Inhalte aufs PDF — in drei Varianten:',
         '• Zeichnen — Freihand, ideal für Unterschriften per Maus oder Trackpad',
-        '• Tippen — Text, der als Stempel platziert wird',
+        '• Tippen — Text als Stempel, mit wählbarer Schrift (Schreibschrift, Handschrift, Serifen …), Größe und Farbe',
         '• Bild — eine Bilddatei (z. B. gescannte Unterschrift) einfügen',
         'Nach der Wahl platzierst du den Stempel per Klick an der gewünschten Stelle. „Leeren“ setzt die Zeichenfläche zurück.',
         'Hinweis: Der Stempel ist eine sichtbare Grafik im Dokument — keine kryptografische Signatur.',
@@ -261,7 +271,7 @@ const de: Content = {
       body: [
         'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt.',
         'Ablauf: Schwärzen aktivieren → Bereiche auf den Seiten markieren → „Anwenden“ → Sicherheitsabfrage bestätigen.',
-        'Darstellung wählbar: schwarz übermalen oder verpixeln (Mosaik). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
+        'Darstellung wählbar: schwarz übermalen, verpixeln (Mosaik) oder weichzeichnen (Blur). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
         'Optional werden dabei auch die Metadaten des Dokuments bereinigt (Autor, Titel, Erstellungsprogramm …).',
         'Achtung: Der Vorgang ist unwiderruflich. Formularfelder und Anmerkungen auf betroffenen Seiten werden mit entfernt. Im Zweifel vorher eine Kopie speichern.',
       ],
@@ -280,7 +290,7 @@ const de: Content = {
       id: 'editregion',
       title: 'Bereich bearbeiten',
       body: [
-        '„Bereich bearbeiten“ ersetzt Inhalte in einem markierten Rechteck:',
+        '„Ersetzen“ tauscht Inhalte in einem markierten Rechteck aus:',
         '• Text — den Bereich mit neuem Text überschreiben',
         '• Bild — den Bereich durch eine Bilddatei ersetzen',
         'Der Bereich wird dabei geleert und neu gefüllt — bestehende Anmerkungen im Bereich gehen verloren (pdfedit warnt vorher).',
@@ -443,12 +453,22 @@ const en: Content = {
       body: [
         'Highlight, Text and Draw create real ISO 32000 annotations — they stay visible and editable in Acrobat & co.',
         'As soon as one of these tools is active, the properties bar appears:',
-        '• Color — click a swatch; applies to new and to currently selected annotations',
+        '• Color — click a swatch or pick any custom color via the color well; applies to new and to currently selected annotations',
         '• Size — font size of the Text tool',
         '• Thickness & opacity — stroke width and transparency when drawing',
         '• Highlight thickness — applies to free highlighting next to text',
         '• Text-tool font — Helvetica (default), Times, Courier or any installed system font; the chosen font is embedded into the file on save',
         'One honest limit: if another app later edits the text box, its rendering may fall back to the default font. Alignment is fixed (for now).',
+      ],
+    },
+    {
+      id: 'objects',
+      title: 'Objects panel',
+      body: [
+        'The sidebar has two tabs: "Pages" and "Objects". The objects tab lists everything you added to the file:',
+        '• This session\u2019s annotations (text, drawings, highlights, stamps) — clicking selects the object on the page (with handles for moving/resizing), × deletes it',
+        '• The document\u2019s form fields — clicking opens "Edit form field" (change type, name, options, default), × deletes the field',
+        'Honestly: annotations from earlier sessions are baked in and no longer appear as objects; Photoshop-style groups and layer ordering are on the roadmap.',
       ],
     },
     {
@@ -530,7 +550,7 @@ const en: Content = {
       body: [
         'The stamp dialog puts content onto the PDF — three ways:',
         '• Draw — freehand, ideal for signatures via mouse or trackpad',
-        '• Type — text placed as a stamp',
+        '• Type — text as a stamp, with selectable font (script, handwriting, serif …), size and color',
         '• Image — insert an image file (e.g. a scanned signature)',
         'After choosing, click to place the stamp where you want it. “Clear” resets the drawing area.',
         'Note: the stamp is a visible graphic in the document — not a cryptographic signature.',
@@ -551,7 +571,7 @@ const en: Content = {
       body: [
         'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box.',
         'Flow: enable redaction → mark areas on the pages → “Apply” → confirm the safety prompt.',
-        'Choose the style: solid black or pixelate (mosaic). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
+        'Choose the style: solid black, pixelate (mosaic) or blur (soften). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
         'Optionally the document’s metadata is cleaned as well (author, title, creating application …).',
         'Caution: this cannot be undone. Form fields and annotations on affected pages are removed too. When in doubt, save a copy first.',
       ],
@@ -570,7 +590,7 @@ const en: Content = {
       id: 'editregion',
       title: 'Edit region',
       body: [
-        '“Edit region” replaces content inside a marked rectangle:',
+        '“Replace” swaps content inside a marked rectangle:',
         '• Text — overwrite the area with new text',
         '• Image — replace the area with an image file',
         'The area is cleared and refilled — existing annotations inside it are lost (pdfedit warns you first).',

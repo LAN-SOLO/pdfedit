@@ -61,6 +61,16 @@ const de = {
   stampPickImage: 'Bild wählen …',
   stampPlace: 'Einfügen',
   stampError: 'Einfügen fehlgeschlagen',
+  stampFontLabel: 'Schrift',
+  stampFonts: {
+    script: 'Schreibschrift',
+    hand: 'Handschrift',
+    serif: 'Serifen',
+    sans: 'Serifenlos',
+    marker: 'Marker',
+  } as Record<'script' | 'hand' | 'serif' | 'sans' | 'marker', string>,
+  stampSizeLabel: 'Größe',
+  stampColorLabel: 'Farbe',
   stampSignatureHint:
     'Das ist eine Bild-Unterschrift zur Kennzeichnung, keine kryptografisch geprüfte Signatur.',
   compressButton: 'Komprimieren',
@@ -108,7 +118,7 @@ const de = {
   ocrResult: (pages: number, words: number) =>
     pages === 1 ? `1 Seite verarbeitet, ${words} Wörter erkannt.` : `${pages} Seiten verarbeitet, ${words} Wörter erkannt.`,
   ocrError: 'Texterkennung fehlgeschlagen',
-  editRegionButton: 'Bearbeiten',
+  editRegionButton: 'Ersetzen',
   editRegionHint:
     'Bereich auf der Seite aufziehen, dann Ersatzinhalt wählen. Wichtig: Dabei wird die ganze Seite zu einem Bild — nur der neue Text/das neue Bild bleibt danach editierbar und durchsuchbar, der Rest der Seite nicht mehr. Kein Textumbruch, keine Vektorbearbeitung — für einfache Korrekturen gedacht, nicht für echtes Umschreiben.',
   editRegionTitle: 'Bereich ersetzen',
@@ -240,7 +250,8 @@ const de = {
   redactStyleBlack: 'Schwarz übermalen',
   redactStylePixelate: 'Verpixeln (Mosaik)',
   redactStylePixelateHint:
-    'Auch beim Verpixeln wird der Originalinhalt entfernt (die Seite wird zum Bild). Aber: Verpixelter Text lässt sich manchmal rekonstruieren — für wirklich Sensibles ist Schwarz die sichere Wahl.',
+    'Auch bei Verpixeln/Weichzeichnen wird der Originalinhalt entfernt (die Seite wird zum Bild). Aber: So verfremdeter Text lässt sich manchmal rekonstruieren — für wirklich Sensibles ist Schwarz die sichere Wahl.',
+  redactStyleBlur: 'Weichzeichnen (Blur)',
   // freetext fonts
   propFont: 'Schrift',
   fontDefault: 'Helvetica (Standard)',
@@ -290,6 +301,23 @@ const de = {
     'Der Original-Abschnitt wird mit der Hintergrundfarbe der Seite überdeckt und der neue Text als echter, durchsuchbarer Text exakt an derselben Position gesetzt. Ehrlich gesagt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen).',
   textEditNoText: 'An dieser Stelle wurde kein Text gefunden — bitte direkt auf Text klicken.',
   textEditError: 'Text ändern fehlgeschlagen',
+  // objects panel
+  sidebarTabPages: 'Seiten',
+  sidebarTabObjects: 'Objekte',
+  objAnnotations: 'Anmerkungen (diese Sitzung)',
+  objFields: 'Formularfelder',
+  objEmpty: 'Noch keine Objekte — neue Anmerkungen, Zeichnungen, Stempel und Formularfelder erscheinen hier und lassen sich auswählen, bearbeiten und löschen.',
+  objTypeLabels: {
+    freetext: 'Text',
+    ink: 'Zeichnung',
+    highlight: 'Markierung',
+    stamp: 'Stempel/Bild',
+  } as Record<string, string>,
+  objDelete: 'Löschen',
+  objEditField: 'Bearbeiten',
+  objPage: (n: number) => `S. ${n}`,
+  formFieldEditTitle: 'Formularfeld bearbeiten',
+  formFieldSave: 'Übernehmen',
   textEditDetected: (font: string, size: number) => `Erkannt: ${font} · ${size} pt`,
   textEditMatchExact: (name: string) => `Passende Schrift installiert: ${name}`,
   textEditMatchFamily: (name: string) => `Nächster Treffer vorausgewählt: ${name}`,
@@ -369,6 +397,16 @@ const en: typeof de = {
   stampPickImage: 'Choose image …',
   stampPlace: 'Insert',
   stampError: 'Insert failed',
+  stampFontLabel: 'Font',
+  stampFonts: {
+    script: 'Script',
+    hand: 'Handwriting',
+    serif: 'Serif',
+    sans: 'Sans-serif',
+    marker: 'Marker',
+  } as Record<'script' | 'hand' | 'serif' | 'sans' | 'marker', string>,
+  stampSizeLabel: 'Size',
+  stampColorLabel: 'Color',
   stampSignatureHint:
     'This is an image-based signature for identification, not a cryptographically verified one.',
   compressButton: 'Compress',
@@ -416,7 +454,7 @@ const en: typeof de = {
   ocrResult: (pages: number, words: number) =>
     pages === 1 ? `1 page processed, ${words} words recognized.` : `${pages} pages processed, ${words} words recognized.`,
   ocrError: 'Text recognition failed',
-  editRegionButton: 'Edit',
+  editRegionButton: 'Replace',
   editRegionHint:
     'Drag a box over the area, then pick replacement content. Note: this turns the whole page into an image — only the new text/image stays editable and searchable afterward, the rest of the page no longer is. No reflow, no vector editing — meant for simple corrections, not real rewriting.',
   editRegionTitle: 'Replace area',
@@ -547,7 +585,8 @@ const en: typeof de = {
   redactStyleBlack: 'Solid black',
   redactStylePixelate: 'Pixelate (mosaic)',
   redactStylePixelateHint:
-    'Pixelation also removes the original content (the page becomes an image). But: pixelated text can sometimes be reconstructed — for truly sensitive content, black is the safe choice.',
+    'Pixelate/blur also removes the original content (the page becomes an image). But: text obscured that way can sometimes be reconstructed — for truly sensitive content, black is the safe choice.',
+  redactStyleBlur: 'Blur (soften)',
   // freetext fonts
   propFont: 'Font',
   fontDefault: 'Helvetica (default)',
@@ -595,6 +634,23 @@ const en: typeof de = {
     'The original run is covered with the page background color and the new text is placed at the exact same position as real, searchable text. Honestly: the original remains invisibly in the file (remove for good: redaction).',
   textEditNoText: 'No text found at this spot — please click directly on text.',
   textEditError: 'Edit text failed',
+  // objects panel
+  sidebarTabPages: 'Pages',
+  sidebarTabObjects: 'Objects',
+  objAnnotations: 'Annotations (this session)',
+  objFields: 'Form fields',
+  objEmpty: 'No objects yet — new annotations, drawings, stamps and form fields appear here and can be selected, edited and deleted.',
+  objTypeLabels: {
+    freetext: 'Text',
+    ink: 'Drawing',
+    highlight: 'Highlight',
+    stamp: 'Stamp/Image',
+  } as Record<string, string>,
+  objDelete: 'Delete',
+  objEditField: 'Edit',
+  objPage: (n: number) => `p. ${n}`,
+  formFieldEditTitle: 'Edit form field',
+  formFieldSave: 'Apply',
   textEditDetected: (font: string, size: number) => `Detected: ${font} · ${size} pt`,
   textEditMatchExact: (name: string) => `Matching font installed: ${name}`,
   textEditMatchFamily: (name: string) => `Closest match preselected: ${name}`,

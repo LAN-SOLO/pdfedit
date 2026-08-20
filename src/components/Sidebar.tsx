@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { t } from '../i18n';
 import { IconPages } from './Icon';
+import type { FieldSummary } from '../formFields';
+
+/** One session annotation (pdf.js editor) shown in the objects panel. */
+export interface AnnotObject {
+  id: string;
+  type: string;
+  label: string;
+  pageIndex: number;
+}
 
 interface Props {
   data: Uint8Array;
@@ -10,6 +19,13 @@ interface Props {
   onOpenPages: () => void;
   /** Move page `from` (0-based) to position `to` — sidebar drag & drop. */
   onMove: (from: number, to: number) => void;
+  /** Objects panel: session annotations + document form fields. */
+  objects: AnnotObject[];
+  fields: FieldSummary[];
+  onSelectObject: (id: string) => void;
+  onDeleteObject: (id: string) => void;
+  onEditField: (field: FieldSummary) => void;
+  onDeleteField: (name: string) => void;
 }
 
 /** Page rail, always visible next to the viewer — jump between pages by
@@ -17,7 +33,20 @@ interface Props {
  *  the full Pages dialog (opened via the button at the top), which needs
  *  the extra room for per-page actions that a ~150px-wide rail doesn't
  *  have. */
-export default function Sidebar({ data, currentPage, onJump, onOpenPages, onMove }: Props) {
+export default function Sidebar({
+  data,
+  currentPage,
+  onJump,
+  onOpenPages,
+  onMove,
+  objects,
+  fields,
+  onSelectObject,
+  onDeleteObject,
+  onEditField,
+  onDeleteField,
+}: Props) {
+  const [tab, setTab] = useState<'pages' | 'objects'>('pages');
   const [thumbs, setThumbs] = useState<Record<number, string>>({});
   const [pageCount, setPageCount] = useState(0);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -68,11 +97,67 @@ export default function Sidebar({ data, currentPage, onJump, onOpenPages, onMove
   return (
     <div className="sidebar">
       <div className="sidebar-head">
-        <span className="sidebar-title">{t.pagesButton}</span>
+        <button
+          className={tab === 'pages' ? 'sidebar-tab active' : 'sidebar-tab'}
+          onClick={() => setTab('pages')}
+        >
+          {t.sidebarTabPages}
+        </button>
+        <button
+          className={tab === 'objects' ? 'sidebar-tab active' : 'sidebar-tab'}
+          onClick={() => setTab('objects')}
+        >
+          {t.sidebarTabObjects}
+        </button>
+        <span style={{ flex: 1 }} />
         <button className="ghost small" onClick={onOpenPages} title={t.pagesTitle} aria-label={t.pagesTitle}>
           <IconPages size={15} />
         </button>
       </div>
+      {tab === 'objects' && (
+        <div className="sidebar-list objects-list">
+          {objects.length === 0 && fields.length === 0 && (
+            <p className="faint objects-empty">{t.objEmpty}</p>
+          )}
+          {objects.length > 0 && <div className="objects-heading">{t.objAnnotations}</div>}
+          {objects.map((o) => (
+            <div key={o.id} className="object-item">
+              <button className="object-label" onClick={() => onSelectObject(o.id)} title={o.label}>
+                <span className="object-type">{t.objTypeLabels[o.type] ?? o.type}</span>
+                <span className="object-text">{o.label}</span>
+                <span className="object-page">{t.objPage(o.pageIndex + 1)}</span>
+              </button>
+              <button
+                className="ghost small object-del"
+                title={t.objDelete}
+                aria-label={t.objDelete}
+                onClick={() => onDeleteObject(o.id)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {fields.length > 0 && <div className="objects-heading">{t.objFields}</div>}
+          {fields.map((f) => (
+            <div key={f.name} className="object-item">
+              <button className="object-label" onClick={() => onEditField(f)} title={t.objEditField}>
+                <span className="object-type">{t.formFieldKinds[f.kind]}</span>
+                <span className="object-text">{f.name}</span>
+                <span className="object-page">{t.objPage(f.pageIndex + 1)}</span>
+              </button>
+              <button
+                className="ghost small object-del"
+                title={t.objDelete}
+                aria-label={t.objDelete}
+                onClick={() => onDeleteField(f.name)}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === 'pages' && (
       <div className="sidebar-list">
         {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
           <button
@@ -121,6 +206,7 @@ export default function Sidebar({ data, currentPage, onJump, onOpenPages, onMove
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }

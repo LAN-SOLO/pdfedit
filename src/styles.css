@@ -1097,16 +1097,18 @@ button.big {
 
 /* WKWebView-Fallback: pdf.js' Löschen-Icon in der schwebenden Editor-
    Toolbar blieb in der Desktop-App leer (nur dort — Chrome rendert es).
-   Eigenes, selbst-enthaltenes Icon als background-image, unabhängig von
-   Maske, CSS-Nesting-Feinheiten und light-dark(). */
-.editToolbar button.deleteButton::before {
-  -webkit-mask-image: none !important;
-  mask-image: none !important;
-  background-color: transparent !important;
+   Der ::before-Umweg griff dort ebenfalls nicht (Pseudo-Element entsteht
+   erst durch pdf.js' verschachtelte Regeln) — deshalb liegt das eigene,
+   selbst-enthaltene Icon jetzt direkt auf dem BUTTON. */
+.editToolbar button.deleteButton {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20' fill='none' stroke='%23fbfbfe' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m2.5 0-.7 9.1A1.5 1.5 0 0 1 12.3 16.5H7.7a1.5 1.5 0 0 1-1.5-1.4L5.5 6M8.3 9v4.5M11.7 9v4.5'/%3E%3C/svg%3E") !important;
   background-repeat: no-repeat !important;
   background-position: center !important;
   background-size: 15px 15px !important;
+}
+
+.editToolbar button.deleteButton::before {
+  display: none !important;
 }
 
 /* ---------- v0.11.1: font select, sidebar drag & drop ---------- */
@@ -1177,4 +1179,109 @@ button.big {
 /* overlay anchor: borderless, exactly canvas-sized (see pageAnchor()) */
 .page .canvasWrapper {
   position: relative;
+}
+
+.stamp-typo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.stamp-typo-row input[type='range'] {
+  width: 110px;
+  accent-color: var(--blue, #38bdf8);
+}
+
+/* ---------- objects panel (v0.11.4) ---------- */
+
+.sidebar-tab {
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-dim, #8aa0c4);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.sidebar-tab.active {
+  color: var(--blue, #38bdf8);
+  background: #16233c;
+}
+
+.objects-list {
+  padding: 6px;
+}
+
+.objects-empty {
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 6px;
+}
+
+.objects-heading {
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-dim, #8aa0c4);
+  margin: 8px 2px 4px;
+}
+
+.object-item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-bottom: 2px;
+}
+
+.object-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  font-size: 11.5px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.object-label:hover {
+  background: #16233c;
+  border-color: var(--border);
+}
+
+.object-type {
+  flex: none;
+  font-size: 9.5px;
+  font-family: var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--blue, #38bdf8);
+}
+
+.object-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.object-page {
+  flex: none;
+  font-size: 10px;
+  color: var(--fg-dim, #8aa0c4);
+}
+
+.object-del {
+  flex: none;
 }
