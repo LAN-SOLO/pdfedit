@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { t } from '../i18n';
 
 // Selbstständiges Hilfe-System: schwebender ?-Button, First-Run-Tutorial
 // und durchsuchbares Handbuch. Sprache folgt wie i18n.ts der Systemsprache.
@@ -81,6 +82,24 @@ const de: Content = {
       ],
     },
     {
+      title: 'Anmerken mit Eigenschaften',
+      body: [
+        'Bei Markieren, Text und Zeichnen erscheint eine Eigenschaften-Leiste unter den Werkzeugen:',
+        '• Farbe — per Klick auf ein Farbfeld, gilt auch für die gerade ausgewählte Anmerkung',
+        '• Größe (Text), Stärke und Deckkraft (Zeichnen), Stärke (freies Markieren)',
+        'Alles wird als ISO-32000-Anmerkung gespeichert und bleibt in Acrobat & Co. bearbeitbar.',
+      ],
+    },
+    {
+      title: 'Formulare, Signatur & Schutz',
+      body: [
+        '• Formularfeld — Bereich aufziehen, Typ wählen (Textfeld, Kontrollkästchen, Auswahlliste) — sofort ausfüllbar',
+        '• Signieren — kryptografische digitale Signatur mit Zertifikat (.p12/.pfx), sichtbar oder unsichtbar',
+        '• Schutz — Passwort setzen, ändern oder entfernen (AES-256), plus Berechtigungen wie Drucken/Kopieren',
+        'Passwortgeschützte PDFs öffnet pdfedit nach Passwort-Eingabe ganz normal.',
+      ],
+    },
+    {
       title: 'Die Werkzeuge',
       body: [
         '• Komprimieren — Dokument verkleinern, Preset wählen, Ergebnis sehen',
@@ -95,6 +114,7 @@ const de: Content = {
       body: [
         'Ungespeicherte Änderungen erkennst du am Tab — beim Schließen fragt pdfedit sicherheitshalber nach.',
         'pdfedit prüft beim Start automatisch auf Updates: Changelog ansehen, dann installieren — nie ungefragt.',
+        'Version und Update-Prüfung findest du jederzeit unten in diesem Hilfe-Fenster.',
       ],
     },
   ],
@@ -115,6 +135,55 @@ const de: Content = {
         '• Zoom — vergrößern/verkleinern per Knopf; „Seitenbreite“ füllt die Breite, „Ganze Seite“ zeigt die komplette Seite',
         '• Seitenleiste — Miniaturen aller Seiten zum schnellen Springen, ein-/ausblendbar',
         '• Suche — Volltextsuche im Dokument mit Vor/Zurück durch die Treffer',
+      ],
+    },
+    {
+      id: 'annotate',
+      title: 'Anmerken & Eigenschaften',
+      body: [
+        'Markieren, Text und Zeichnen legen echte ISO-32000-Anmerkungen an — sie bleiben in Acrobat & Co. sichtbar und dort weiter bearbeitbar.',
+        'Sobald eines dieser Werkzeuge aktiv ist, erscheint die Eigenschaften-Leiste:',
+        '• Farbe — Farbfelder anklicken; wirkt auf neue und auf gerade ausgewählte Anmerkungen',
+        '• Größe — Schriftgröße des Text-Werkzeugs',
+        '• Stärke & Deckkraft — Strichbreite und Transparenz beim Zeichnen',
+        '• Stärke beim Markieren — gilt für freies Markieren neben Text',
+        'Grenze, ehrlich benannt: Schriftart und Ausrichtung des Text-Werkzeugs sind (noch) fest — das liegt an der Editor-Engine und steht auf der Roadmap.',
+      ],
+    },
+    {
+      id: 'formfields',
+      title: 'Formularfelder erstellen',
+      body: [
+        '„Formularfeld“ macht aus jedem PDF ein ausfüllbares Formular (wie Acrobats „Formular vorbereiten“):',
+        '• Bereich auf der Seite aufziehen — dort entsteht das Feld',
+        '• Typ wählen: Textfeld, mehrzeiliges Textfeld, Kontrollkästchen oder Auswahlliste',
+        '• Feldname und Vorbelegung festlegen, bei Auswahllisten die Optionen',
+        'Die Felder sind echte AcroForm-Felder: sofort in pdfedit ausfüllbar und in jedem anderen PDF-Programm ebenso.',
+        'Mit „Formular flachrechnen“ lassen sich ausgefüllte Werte später dauerhaft einbrennen.',
+      ],
+    },
+    {
+      id: 'sign',
+      title: 'Digital signieren',
+      body: [
+        '„Signieren“ erstellt eine kryptografische Signatur mit einem Zertifikat (PKCS#12: .p12/.pfx) — das Gegenstück zu Acrobats „Mit Zertifikat signieren“.',
+        '• Zertifikat wählen und Passwort eingeben — pdfedit zeigt sofort, auf wen es ausgestellt ist',
+        '• Sichtbar (Feld auf der Seite aufziehen) oder unsichtbar signieren',
+        '• Optional einen Grund angeben (z. B. „Freigabe“)',
+        'Prüfprogramme wie Acrobat verifizieren die Signatur; jede spätere Änderung am Dokument wird dort sichtbar.',
+        'Hinweis: Selbst erstellte Zertifikate erscheinen als „Aussteller unbekannt“ — volle Vertrauensketten brauchen ein Zertifikat einer Zertifizierungsstelle. Qualifizierte Signaturen (QES) sind bewusst nicht versprochen.',
+      ],
+    },
+    {
+      id: 'protect',
+      title: 'Passwort & Berechtigungen',
+      body: [
+        'Der Schutz-Dialog ist die Passwort-Zentrale des Dokuments:',
+        '• Passwort setzen oder ändern — das Dokument wird beim Speichern mit AES-256 verschlüsselt',
+        '• Besitzer-Passwort & Berechtigungen — Drucken, Kopieren, Ändern, Ausfüllen, Kommentieren gezielt erlauben oder sperren',
+        '• Passwort entfernen — speichert das Dokument unverschlüsselt',
+        'Passwortgeschützte PDFs öffnet pdfedit nach der Passwort-Abfrage ganz normal; beim Speichern bleibt der Schutz mit dem bekannten Passwort erhalten, bis du ihn hier änderst.',
+        'Zur Einordnung: Berechtigungen ohne Öffnen-Passwort sind eine Konventionsgrenze, die PDF-Programme respektieren — gegen das Öffnen schützt nur das Öffnen-Passwort selbst.',
       ],
     },
     {
@@ -266,6 +335,24 @@ const en: Content = {
       ],
     },
     {
+      title: 'Annotating with properties',
+      body: [
+        'With Highlight, Text and Draw active, a properties bar appears below the tools:',
+        '• Color — click a swatch; also applies to the currently selected annotation',
+        '• Size (text), thickness and opacity (drawing), thickness (free highlighting)',
+        'Everything is stored as ISO 32000 annotations and stays editable in Acrobat & co.',
+      ],
+    },
+    {
+      title: 'Forms, signature & protection',
+      body: [
+        '• Form field — drag an area, pick a type (text field, checkbox, dropdown) — instantly fillable',
+        '• Sign — cryptographic digital signature with a certificate (.p12/.pfx), visible or invisible',
+        '• Protect — set, change or remove a password (AES-256), plus permissions like printing/copying',
+        'Password-protected PDFs open normally after entering the password.',
+      ],
+    },
+    {
       title: 'The tools',
       body: [
         '• Compress — shrink the document, pick a preset, see the result',
@@ -280,6 +367,7 @@ const en: Content = {
       body: [
         'Tabs with unsaved changes are marked — pdfedit asks before anything is lost on close.',
         'pdfedit checks for updates on launch: view the changelog, then install — never unasked.',
+        'Version and update check are always available at the bottom of this help window.',
       ],
     },
   ],
@@ -300,6 +388,55 @@ const en: Content = {
         '• Zoom — in/out via buttons; “fit width” fills the width, “fit page” shows the whole page',
         '• Sidebar — thumbnails of all pages for quick jumps, toggleable',
         '• Search — full-text search with next/previous through the hits',
+      ],
+    },
+    {
+      id: 'annotate',
+      title: 'Annotating & properties',
+      body: [
+        'Highlight, Text and Draw create real ISO 32000 annotations — they stay visible and editable in Acrobat & co.',
+        'As soon as one of these tools is active, the properties bar appears:',
+        '• Color — click a swatch; applies to new and to currently selected annotations',
+        '• Size — font size of the Text tool',
+        '• Thickness & opacity — stroke width and transparency when drawing',
+        '• Highlight thickness — applies to free highlighting next to text',
+        'One honest limit: font family and alignment of the Text tool are fixed (for now) — an editor-engine constraint that is on the roadmap.',
+      ],
+    },
+    {
+      id: 'formfields',
+      title: 'Creating form fields',
+      body: [
+        '“Form field” turns any PDF into a fillable form (like Acrobat’s “Prepare form”):',
+        '• Drag an area on the page — the field is created there',
+        '• Pick a type: text field, multiline text field, checkbox or dropdown',
+        '• Set field name and default value, plus the options for dropdowns',
+        'The fields are real AcroForm fields: instantly fillable in pdfedit and in every other PDF app.',
+        '“Flatten form” can later bake filled-in values permanently into the pages.',
+      ],
+    },
+    {
+      id: 'sign',
+      title: 'Signing digitally',
+      body: [
+        '“Sign” creates a cryptographic signature with a certificate (PKCS#12: .p12/.pfx) — the counterpart of Acrobat’s “Sign with certificate”.',
+        '• Choose the certificate and enter its password — pdfedit immediately shows who it is issued to',
+        '• Sign visibly (drag a field onto the page) or invisibly',
+        '• Optionally state a reason (e.g. “Approval”)',
+        'Validators like Acrobat verify the signature; any later change to the document becomes visible there.',
+        'Note: self-created certificates show as “issuer unknown” — full trust chains need a CA-issued certificate. Qualified signatures (QES) are deliberately not promised.',
+      ],
+    },
+    {
+      id: 'protect',
+      title: 'Password & permissions',
+      body: [
+        'The Protect dialog is the document’s password hub:',
+        '• Set or change a password — the document is encrypted with AES-256 on save',
+        '• Owner password & permissions — allow or block printing, copying, modifying, form filling, commenting',
+        '• Remove password — saves the document unencrypted',
+        'Password-protected PDFs open normally after the password prompt; saving keeps the protection with the known password until you change it here.',
+        'For context: permissions without the open password are a convention that PDF apps respect — only the open password itself prevents opening.',
       ],
     },
     {
@@ -401,9 +538,27 @@ const en: Content = {
   ],
 };
 
-const SEEN_KEY = 'pdfedit.tutorialSeen';
+// v2: bumped with 0.11.0 so the tutorial (now covering forms, signing,
+// protection and tool properties) shows once more for existing users.
+const SEEN_KEY = 'pdfedit.tutorialSeen.v2';
 
-export default function Help() {
+interface HelpProps {
+  version: string;
+  updateState: 'unknown' | 'none' | 'available';
+  updateVersion: string | null;
+  checking: boolean;
+  onCheckUpdate: () => void;
+  onOpenUpdate: () => void;
+}
+
+export default function Help({
+  version,
+  updateState,
+  updateVersion,
+  checking,
+  onCheckUpdate,
+  onOpenUpdate,
+}: HelpProps) {
   const c = navigator.language.toLowerCase().startsWith('de') ? de : en;
   const [mode, setMode] = useState<'closed' | 'tutorial' | 'manual'>(() =>
     localStorage.getItem(SEEN_KEY) ? 'closed' : 'tutorial'
@@ -432,6 +587,7 @@ export default function Help() {
     <>
       <button className="hlp-fab" title={c.labels.fab} onClick={() => setMode('manual')}>
         ?
+        {updateState === 'available' && <span className="hlp-badge" aria-hidden="true" />}
       </button>
       {mode !== 'closed' && (
         <div className="hlp-overlay" onClick={close}>
@@ -542,6 +698,29 @@ export default function Help() {
                 </div>
               </div>
             )}
+
+            <div className="hlp-foot">
+              {version && <span className="hlp-version">{t.helpVersion(version)}</span>}
+              <span className="hlp-spacer" />
+              {updateState === 'available' ? (
+                <button
+                  className="hlp-primary"
+                  onClick={() => {
+                    close();
+                    onOpenUpdate();
+                  }}
+                >
+                  {t.updateAvailable(updateVersion ?? '')} — {t.updateNow}
+                </button>
+              ) : (
+                <>
+                  {updateState === 'none' && <span className="hlp-uptodate">{t.upToDate}</span>}
+                  <button onClick={onCheckUpdate} disabled={checking}>
+                    {checking ? t.updateChecking : t.checkForUpdates}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

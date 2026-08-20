@@ -3,11 +3,12 @@ const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert, durchsucht ' +
-    'und organisiert Seiten, füllt Formulare aus, setzt Bild-Unterschriften ' +
-    'und Stempel, komprimiert und schwärzt Inhalte dauerhaft. OCR und die ' +
-    'vollständige Text-/Bildbearbeitung ziehen als nächste Updates ein, ' +
-    'jeweils mit Changelog vor der Installation.',
+    'pdfedit öffnet mehrere PDFs in Tabs, markiert, kommentiert und zeichnet ' +
+    'mit wählbarer Farbe und Größe, erstellt und füllt Formulare aus, ' +
+    'signiert digital per Zertifikat, schützt Dokumente mit Passwort ' +
+    '(und entfernt Passwörter wieder), organisiert Seiten, komprimiert, ' +
+    'schwärzt dauerhaft und erkennt Text per OCR — alles lokal. Die ' +
+    'vollständige Text-/Bildbearbeitung zieht als nächstes Update ein.',
   openPdf: 'PDF öffnen',
   newPdf: 'Neues PDF',
   dropHint: 'Oder eine PDF-Datei einfach ins Fenster ziehen.',
@@ -145,17 +146,106 @@ const de = {
     'Das Update ersetzt nur die App selbst (signiert & verifiziert) — Ihre Dokumente und Einstellungen bleiben unangetastet.',
   updateInstalling: 'Update wird installiert — die App startet gleich neu …',
   updateFailed: 'Update fehlgeschlagen',
+  // tool properties
+  propColor: 'Farbe',
+  propSize: 'Größe',
+  propThickness: 'Stärke',
+  propOpacity: 'Deckkraft',
+  propThicknessFreeHint: 'Stärke gilt für freies Markieren neben Text',
+  // form fields
+  formFieldButton: 'Formularfeld',
+  formFieldHint: 'Bereich auf der Seite aufziehen — dort entsteht das neue Formularfeld.',
+  formFieldTitle: 'Formularfeld erstellen',
+  formFieldKind: 'Feldtyp',
+  formFieldKinds: {
+    text: 'Textfeld',
+    multiline: 'Mehrzeiliges Textfeld',
+    checkbox: 'Kontrollkästchen',
+    dropdown: 'Auswahlliste',
+  } as Record<'text' | 'multiline' | 'checkbox' | 'dropdown', string>,
+  formFieldName: 'Feldname',
+  formFieldNameBase: 'feld',
+  formFieldOptions: 'Optionen (eine pro Zeile)',
+  formFieldDefault: 'Vorbelegung',
+  formFieldDefaultCheck: 'Standardmäßig angehakt',
+  formFieldCreate: 'Feld erstellen',
+  formFieldCreating: 'Erstelle Feld …',
+  formFieldNameTaken: 'Diesen Feldnamen gibt es im Dokument schon — bitte einen anderen wählen.',
+  formFieldError: 'Formularfeld konnte nicht erstellt werden',
+  formFieldLostWarning: 'Nicht abgeschlossenes Formularfeld wurde beim Tab-Wechsel verworfen.',
+  // digital signature
+  signButton: 'Signieren',
+  signTitle: 'Digital signieren (Zertifikat)',
+  signIntro:
+    'Signiert das Dokument kryptografisch mit einem Zertifikat (PKCS#12: .p12/.pfx) — wie „Mit Zertifikat signieren" in Acrobat. Acrobat & Co. prüfen die Signatur; Änderungen nach dem Signieren werden dort sichtbar.',
+  signPickCert: 'Zertifikat wählen (.p12/.pfx) …',
+  signCertPassword: 'Zertifikat-Passwort',
+  signCertInvalid: 'Zertifikat konnte nicht gelesen werden — Passwort falsch oder Datei ungültig.',
+  signCertInfo: (cn: string, issuer: string, until: string) =>
+    `${cn} · ausgestellt von ${issuer} · gültig bis ${until}`,
+  signReason: 'Grund (optional, z. B. „Freigabe")',
+  signVisibility: 'Darstellung',
+  signInvisible: 'Unsichtbar (nur Signatur, kein Feld auf der Seite)',
+  signVisible: 'Sichtbares Feld aufziehen',
+  signPlaceHint: 'Bereich für das Signaturfeld auf der Seite aufziehen.',
+  signNow: 'Signieren',
+  signSigning: 'Signiere …',
+  signDone: 'Digital signiert und gespeichert.',
+  signDoneNoPath: 'Digital signiert — Datei wurde exportiert.',
+  signError: 'Signieren fehlgeschlagen',
+  signProtectedConflict:
+    'Passwortschutz und digitale Signatur zusammen unterstützt pdfedit noch nicht — bitte erst signieren, dann schützen, oder den Schutz vorher entfernen.',
+  signEditWarning:
+    'Wichtig: Weitere Bearbeitungen nach dem Signieren machen die Signatur in Prüfprogrammen als „Dokument geändert" sichtbar.',
+  signSelfSignedNote:
+    'Selbst erstellte Zertifikate zeigen Prüfprogramme als „Aussteller unbekannt" an — für volle Vertrauensketten braucht es ein Zertifikat einer Zertifizierungsstelle.',
+  // protection / passwords
+  protectButton: 'Schutz',
+  protectTitle: 'Passwort & Berechtigungen',
+  protectStateNone: 'Dieses Dokument wird ohne Passwortschutz gespeichert.',
+  protectStateActive: 'Beim Speichern wird das Dokument mit Passwort verschlüsselt (AES-256).',
+  protectStateInherited:
+    'Das Dokument war passwortgeschützt geöffnet — der Schutz wird beim Speichern mit dem bekannten Passwort beibehalten, solange er hier nicht geändert wird.',
+  protectSetTitle: 'Passwort setzen oder ändern',
+  protectUserPw: 'Passwort zum Öffnen',
+  protectUserPwRepeat: 'Passwort wiederholen',
+  protectOwnerPw: 'Besitzer-Passwort (optional, für Berechtigungen)',
+  protectPwMismatch: 'Die Passwörter stimmen nicht überein.',
+  protectPwEmpty: 'Bitte ein Passwort eingeben.',
+  protectPermsTitle: 'Berechtigungen ohne Besitzer-Passwort',
+  protectPerms: {
+    printing: 'Drucken',
+    copying: 'Text & Bilder kopieren',
+    modifying: 'Seiten ändern/zusammenstellen',
+    annotating: 'Kommentieren & unterschreiben',
+    fillingForms: 'Formulare ausfüllen',
+  } as Record<'printing' | 'copying' | 'modifying' | 'annotating' | 'fillingForms', string>,
+  protectApplySave: 'Übernehmen & speichern',
+  protectApplying: 'Verschlüssele & speichere …',
+  protectRemove: 'Passwort entfernen',
+  protectRemoveHint: 'Entfernt den Passwortschutz und speichert das Dokument unverschlüsselt.',
+  protectRemoved: 'Passwortschutz entfernt und gespeichert.',
+  protectApplied: 'Passwortschutz gesetzt und gespeichert.',
+  protectError: 'Schutz konnte nicht angewendet werden',
+  // opening password-protected files
+  pwPromptTitle: 'Passwortgeschütztes PDF',
+  pwPromptBody: (name: string) => `„${name}" ist passwortgeschützt. Passwort zum Öffnen eingeben:`,
+  pwPromptWrong: 'Passwort falsch — bitte erneut versuchen.',
+  pwPromptOpen: 'Öffnen',
+  pwPromptPlaceholder: 'Passwort',
+  helpVersion: (v: string) => `pdfedit v${v}`,
 };
 
 const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
   statusTitle: 'Beta',
   statusText:
-    'pdfedit opens multiple PDFs in tabs, highlights, annotates, searches ' +
-    'and organizes pages, fills out forms, places image signatures and ' +
-    'stamps, compresses and permanently redacts content. OCR and full ' +
-    'text/image editing arrive as the next updates, each with the ' +
-    'changelog shown before installing.',
+    'pdfedit opens multiple PDFs in tabs, highlights, annotates and draws ' +
+    'with selectable color and size, creates and fills out forms, signs ' +
+    'digitally with a certificate, protects documents with a password ' +
+    '(and removes passwords again), organizes pages, compresses, ' +
+    'permanently redacts and recognizes text via OCR — all locally. ' +
+    'Full text/image editing arrives as the next update.',
   openPdf: 'Open PDF',
   newPdf: 'New PDF',
   dropHint: 'Or just drop a PDF file into the window.',
@@ -292,6 +382,94 @@ const en: typeof de = {
     'The update replaces only the app itself (signed & verified) — your documents and settings stay untouched.',
   updateInstalling: 'Installing update — the app will restart shortly …',
   updateFailed: 'Update failed',
+  // tool properties
+  propColor: 'Color',
+  propSize: 'Size',
+  propThickness: 'Thickness',
+  propOpacity: 'Opacity',
+  propThicknessFreeHint: 'Thickness applies to free highlighting next to text',
+  // form fields
+  formFieldButton: 'Form field',
+  formFieldHint: 'Drag a box on the page — the new form field is placed there.',
+  formFieldTitle: 'Create form field',
+  formFieldKind: 'Field type',
+  formFieldKinds: {
+    text: 'Text field',
+    multiline: 'Multiline text field',
+    checkbox: 'Checkbox',
+    dropdown: 'Dropdown',
+  } as Record<'text' | 'multiline' | 'checkbox' | 'dropdown', string>,
+  formFieldName: 'Field name',
+  formFieldNameBase: 'field',
+  formFieldOptions: 'Options (one per line)',
+  formFieldDefault: 'Default value',
+  formFieldDefaultCheck: 'Checked by default',
+  formFieldCreate: 'Create field',
+  formFieldCreating: 'Creating field …',
+  formFieldNameTaken: 'That field name already exists in this document — please pick another one.',
+  formFieldError: 'Could not create the form field',
+  formFieldLostWarning: 'An unfinished form field was discarded when the tab changed.',
+  // digital signature
+  signButton: 'Sign',
+  signTitle: 'Sign digitally (certificate)',
+  signIntro:
+    'Cryptographically signs the document with a certificate (PKCS#12: .p12/.pfx) — like "Sign with certificate" in Acrobat. Acrobat & co. verify the signature; changes made after signing become visible there.',
+  signPickCert: 'Choose certificate (.p12/.pfx) …',
+  signCertPassword: 'Certificate password',
+  signCertInvalid: 'Could not read the certificate — wrong password or invalid file.',
+  signCertInfo: (cn: string, issuer: string, until: string) =>
+    `${cn} · issued by ${issuer} · valid until ${until}`,
+  signReason: 'Reason (optional, e.g. "Approval")',
+  signVisibility: 'Appearance',
+  signInvisible: 'Invisible (signature only, no field on the page)',
+  signVisible: 'Drag a visible field',
+  signPlaceHint: 'Drag the area for the signature field on the page.',
+  signNow: 'Sign',
+  signSigning: 'Signing …',
+  signDone: 'Digitally signed and saved.',
+  signDoneNoPath: 'Digitally signed — file was exported.',
+  signError: 'Signing failed',
+  signProtectedConflict:
+    'pdfedit does not yet combine password protection and digital signatures — sign first and protect afterwards, or remove the protection first.',
+  signEditWarning:
+    'Note: any edits made after signing will show up as "document modified" in signature validators.',
+  signSelfSignedNote:
+    'Self-created certificates show as "issuer unknown" in validators — a full trust chain needs a certificate from a certificate authority.',
+  // protection / passwords
+  protectButton: 'Protect',
+  protectTitle: 'Password & permissions',
+  protectStateNone: 'This document is saved without password protection.',
+  protectStateActive: 'On save, the document is encrypted with a password (AES-256).',
+  protectStateInherited:
+    'The document was opened password-protected — saving keeps the protection with the known password unless you change it here.',
+  protectSetTitle: 'Set or change password',
+  protectUserPw: 'Password to open',
+  protectUserPwRepeat: 'Repeat password',
+  protectOwnerPw: 'Owner password (optional, for permissions)',
+  protectPwMismatch: 'The passwords do not match.',
+  protectPwEmpty: 'Please enter a password.',
+  protectPermsTitle: 'Permissions without the owner password',
+  protectPerms: {
+    printing: 'Printing',
+    copying: 'Copy text & images',
+    modifying: 'Modify/assemble pages',
+    annotating: 'Comment & sign',
+    fillingForms: 'Fill in forms',
+  } as Record<'printing' | 'copying' | 'modifying' | 'annotating' | 'fillingForms', string>,
+  protectApplySave: 'Apply & save',
+  protectApplying: 'Encrypting & saving …',
+  protectRemove: 'Remove password',
+  protectRemoveHint: 'Removes the password protection and saves the document unencrypted.',
+  protectRemoved: 'Password protection removed and saved.',
+  protectApplied: 'Password protection applied and saved.',
+  protectError: 'Could not apply protection',
+  // opening password-protected files
+  pwPromptTitle: 'Password-protected PDF',
+  pwPromptBody: (name: string) => `"${name}" is password-protected. Enter the password to open it:`,
+  pwPromptWrong: 'Wrong password — please try again.',
+  pwPromptOpen: 'Open',
+  pwPromptPlaceholder: 'Password',
+  helpVersion: (v: string) => `pdfedit v${v}`,
 };
 
 export const t = navigator.language.toLowerCase().startsWith('de') ? de : en;

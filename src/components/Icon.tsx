@@ -156,3 +156,25 @@ export const IconChevronLeft = ({ size = 18 }: Props) => (
     <path d="M12 4l-6 6 6 6" />
   </svg>
 );
+
+export const IconFormField = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <rect x="3" y="5" width="14" height="10" rx="1.2" />
+    <path d="M6 8v4" />
+  </svg>
+);
+
+export const IconSign = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <path d="M3 14c1.5-3 3-6.5 4.5-6.5S8.5 12 10 12s1.7-2.5 3-2.5c1 0 1 1.6 2 1.6.7 0 1.2-.4 2-.9" />
+    <path d="M3 17h14" />
+  </svg>
+);
+
+export const IconLock = ({ size = 18 }: Props) => (
+  <svg width={size} height={size} {...base}>
+    <rect x="4.5" y="9" width="11" height="8" rx="1.2" />
+    <path d="M7 9V6.5a3 3 0 0 1 6 0V9" />
+    <path d="M10 12.2v2" />
+  </svg>
+);

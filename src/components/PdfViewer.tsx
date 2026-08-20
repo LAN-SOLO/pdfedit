@@ -21,6 +21,12 @@ import OcrDialog, { type OcrScope } from './OcrDialog';
 import { ocrPdf, type OcrLang, type OcrProgress } from '../ocr';
 import EditRegionDialog from './EditRegionDialog';
 import { applyRegionEdit, type EditContent, type EditRegion } from '../regionEdit';
+import FormFieldDialog from './FormFieldDialog';
+import { addFormField, FieldNameTakenError, suggestFieldName, type FieldRegion, type FieldSpec } from '../formFields';
+import SignDialog, { type SignRequest } from './SignDialog';
+import { signPdf, type SignRegion } from '../sign';
+import ProtectDialog from './ProtectDialog';
+import type { Protection } from '../protect';
 import {
   IconSelect,
   IconHighlight,
@@ -40,13 +46,21 @@ import {
   IconSidebar,
   IconOcr,
   IconEditRegion,
+  IconFormField,
+  IconSign,
+  IconLock,
 } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).__debugPdfjs = pdfjsLib;
 
-const { AnnotationEditorType, AnnotationMode } = pdfjsLib;
+const { AnnotationEditorType, AnnotationMode, AnnotationEditorParamsType } = pdfjsLib;
+
+// Must stay in sync with `annotationEditorHighlightColors` further down —
+// pdf.js only accepts highlight colors from that configured list.
+const HIGHLIGHT_COLORS = ['#FFFF98', '#53FFBC', '#80EBFF', '#FFB3FF', '#FF4F5F'];
+const PEN_COLORS = ['#0B1220', '#E11D48', '#2563EB', '#16A34A', '#F59E0B', '#7C3AED'];
 
 // Stamp/Signature aren't in this list: pdf.js's built-in editors for both
 // expect the full Firefox-viewer chrome we don't have. Placement for them
@@ -75,16 +89,120 @@ interface PlacedMark extends RedactMark {
 
 let nextMarkId = 1;
 
+/** A dragged page rectangle in page-relative percentages — the shared
+ *  currency of every drag-to-mark mode (redact, region edit, form field,
+ *  signature field). */
+interface PageRegion {
+  pageIndex: number;
+  xPct: number;
+  yPct: number;
+  wPct: number;
+  hPct: number;
+}
+
+/** Drag-to-mark a rectangle on a pdf.js page. Attached directly to the
+ *  pdf.js-managed page DOM (outside React's tree) rather than as a React
+ *  overlay, since pdf.js owns and reflows those page elements on
+ *  zoom/scroll itself. `onRegion` must be referentially stable — the
+ *  effect re-subscribes (and drops an in-progress drag) when it changes. */
+function useRegionDrag(
+  containerRef: React.RefObject<HTMLDivElement>,
+  active: boolean,
+  markClass: string,
+  onRegion: (region: PageRegion) => void
+) {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!active || !container) return;
+
+    container.classList.add('redacting');
+
+    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
+      null;
+
+    const onDown = (e: PointerEvent) => {
+      const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
+      const el = document.createElement('div');
+      el.className = markClass;
+      pageEl.appendChild(el);
+      drag = {
+        pageEl,
+        pageIndex: Number(pageEl.dataset.pageNumber) - 1,
+        startX: e.clientX - rect.left,
+        startY: e.clientY - rect.top,
+        el,
+      };
+    };
+
+    const onMove = (e: PointerEvent) => {
+      if (!drag) return;
+      const rect = drag.pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(drag.startX, curX);
+      const y = Math.min(drag.startY, curY);
+      const w = Math.abs(curX - drag.startX);
+      const h = Math.abs(curY - drag.startY);
+      Object.assign(drag.el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
+    };
+
+    const onUp = (e: PointerEvent) => {
+      if (!drag) return;
+      const { pageEl, pageIndex, startX, startY, el } = drag;
+      drag = null;
+      el.remove();
+      const rect = pageEl.getBoundingClientRect();
+      const curX = e.clientX - rect.left;
+      const curY = e.clientY - rect.top;
+      const x = Math.min(startX, curX);
+      const y = Math.min(startY, curY);
+      const w = Math.abs(curX - startX);
+      const h = Math.abs(curY - startY);
+      if (w < 6 || h < 6 || rect.width === 0 || rect.height === 0) return;
+      onRegion({
+        pageIndex,
+        xPct: x / rect.width,
+        yPct: y / rect.height,
+        wPct: w / rect.width,
+        hPct: h / rect.height,
+      });
+    };
+
+    container.addEventListener('pointerdown', onDown);
+    container.addEventListener('pointermove', onMove);
+    container.addEventListener('pointerup', onUp);
+    return () => {
+      container.classList.remove('redacting');
+      container.removeEventListener('pointerdown', onDown);
+      container.removeEventListener('pointermove', onMove);
+      container.removeEventListener('pointerup', onUp);
+      drag?.el.remove();
+    };
+  }, [containerRef, active, markClass, onRegion]);
+}
+
 interface PdfViewerProps {
   data: Uint8Array;
   name: string;
+  /** Password protection applied at save time (null = save unencrypted). */
+  protection: Protection | null;
+  /** True when the protection came from opening an encrypted file. */
+  protectionInherited: boolean;
   onDirtyChange: (dirty: boolean) => void;
-  onSave: (bytes: Uint8Array) => void;
+  /** `protectionOverride`: pass the protection to apply for THIS save,
+   *  sidestepping the async race between updating the doc's protection
+   *  state and reading it back in the save path. `undefined` keeps the
+   *  doc's stored protection. */
+  onSave: (bytes: Uint8Array, protectionOverride?: Protection | null) => void;
   /** Replace the working document in place (e.g. after reordering/rotating/
    *  merging pages in the Pages panel) — an in-memory change, same as a
    *  drawn stroke: it marks the tab dirty but does not touch disk. */
   onReplace: (bytes: Uint8Array) => void;
+  onProtectionChange: (protection: Protection | null) => void;
   onError: (msg: string) => void;
+  onNotice: (msg: string) => void;
 }
 
 export interface PdfViewerHandle {
@@ -109,7 +227,18 @@ export interface PdfViewerHandle {
  *  ONE of these at a time — the parent unmounts inactive tabs and uses
  *  `checkpoint()` beforehand to keep their in-progress edits. */
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
-  { data, name, onDirtyChange, onSave, onReplace, onError },
+  {
+    data,
+    name,
+    protection,
+    protectionInherited,
+    onDirtyChange,
+    onSave,
+    onReplace,
+    onProtectionChange,
+    onError,
+    onNotice,
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -147,6 +276,29 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const [pendingRegion, setPendingRegion] = useState<EditRegion | null>(null);
   const [regionEditBusy, setRegionEditBusy] = useState(false);
   const pendingRegionRef = useRef<EditRegion | null>(null);
+  // form-field creation
+  const [placingField, setPlacingField] = useState(false);
+  const [pendingFieldRegion, setPendingFieldRegion] = useState<FieldRegion | null>(null);
+  const [suggestedFieldName, setSuggestedFieldName] = useState('feld_1');
+  const [fieldBusy, setFieldBusy] = useState(false);
+  const pendingFieldRegionRef = useRef<FieldRegion | null>(null);
+  // digital signature
+  const [showSign, setShowSign] = useState(false);
+  const [signPlacing, setSignPlacing] = useState(false);
+  const [signBusy, setSignBusy] = useState(false);
+  const pendingSignReqRef = useRef<SignRequest | null>(null);
+  const doSignRef = useRef<((req: SignRequest, region: SignRegion | null) => Promise<void>) | null>(null);
+  // password protection
+  const [showProtect, setShowProtect] = useState(false);
+  const [protectBusy, setProtectBusy] = useState(false);
+  // per-tool editor defaults, mirrored to pdf.js via updateParams
+  const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0]);
+  const [highlightThickness, setHighlightThickness] = useState(12);
+  const [freetextColor, setFreetextColor] = useState(PEN_COLORS[0]);
+  const [freetextSize, setFreetextSize] = useState(12);
+  const [inkColor, setInkColor] = useState(PEN_COLORS[0]);
+  const [inkThickness, setInkThickness] = useState(2);
+  const [inkOpacity, setInkOpacity] = useState(100);
 
   useEffect(() => {
     if (!containerRef.current || !viewerElRef.current) return;
@@ -161,6 +313,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     setRedacting(false);
     setPendingRegion(null);
     setEditingRegion(false);
+    setPendingFieldRegion(null);
+    setPlacingField(false);
+    setSignPlacing(false);
+    pendingSignReqRef.current = null;
 
     const eventBus = new EventBus();
     eventBusRef.current = eventBus;
@@ -282,6 +438,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     pendingRegionRef.current = pendingRegion;
   }, [pendingRegion]);
 
+  useEffect(() => {
+    pendingFieldRegionRef.current = pendingFieldRegion;
+  }, [pendingFieldRegion]);
+
   // Pending (unapplied) redaction marks / a just-marked edit region live
   // only in this component's state — unlike a drawn Ink stroke, they have
   // no pdf.js editor object that checkpoint()/saveDocument() could
@@ -291,89 +451,16 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     return () => {
       if (marksRef.current.length > 0) onError(t.redactMarksLostWarning);
       if (pendingRegionRef.current) onError(t.editRegionLostWarning);
+      if (pendingFieldRegionRef.current) onError(t.formFieldLostWarning);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Draws the in-progress drag rectangle and turns it into a normalized
-  // mark on release. Attached directly to the pdf.js-managed page DOM
-  // (outside React's tree, same reasoning as the rest of this component's
-  // pdf.js integration) rather than as a React overlay, since pdf.js owns
-  // and reflows those page elements on zoom/scroll itself.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!redacting || !container) return;
-
-    container.classList.add('redacting');
-
-    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
-      null;
-
-    const onDown = (e: PointerEvent) => {
-      const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
-      if (!pageEl) return;
-      const rect = pageEl.getBoundingClientRect();
-      const el = document.createElement('div');
-      el.className = 'redact-mark';
-      pageEl.appendChild(el);
-      drag = {
-        pageEl,
-        pageIndex: Number(pageEl.dataset.pageNumber) - 1,
-        startX: e.clientX - rect.left,
-        startY: e.clientY - rect.top,
-        el,
-      };
-    };
-
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return;
-      const rect = drag.pageEl.getBoundingClientRect();
-      const curX = e.clientX - rect.left;
-      const curY = e.clientY - rect.top;
-      const x = Math.min(drag.startX, curX);
-      const y = Math.min(drag.startY, curY);
-      const w = Math.abs(curX - drag.startX);
-      const h = Math.abs(curY - drag.startY);
-      Object.assign(drag.el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
-    };
-
-    const onUp = (e: PointerEvent) => {
-      if (!drag) return;
-      const { pageEl, pageIndex, startX, startY, el } = drag;
-      drag = null;
-      el.remove();
-      const rect = pageEl.getBoundingClientRect();
-      const curX = e.clientX - rect.left;
-      const curY = e.clientY - rect.top;
-      const x = Math.min(startX, curX);
-      const y = Math.min(startY, curY);
-      const w = Math.abs(curX - startX);
-      const h = Math.abs(curY - startY);
-      if (w < 6 || h < 6 || rect.width === 0 || rect.height === 0) return;
-      setMarks((prev) => [
-        ...prev,
-        {
-          id: nextMarkId++,
-          pageIndex,
-          xPct: x / rect.width,
-          yPct: y / rect.height,
-          wPct: w / rect.width,
-          hPct: h / rect.height,
-        },
-      ]);
-    };
-
-    container.addEventListener('pointerdown', onDown);
-    container.addEventListener('pointermove', onMove);
-    container.addEventListener('pointerup', onUp);
-    return () => {
-      container.classList.remove('redacting');
-      container.removeEventListener('pointerdown', onDown);
-      container.removeEventListener('pointermove', onMove);
-      container.removeEventListener('pointerup', onUp);
-      drag?.el.remove();
-    };
-  }, [redacting]);
+  // Turns a released drag into an accumulated redaction mark.
+  const onRedactRegion = useCallback((region: PageRegion) => {
+    setMarks((prev) => [...prev, { id: nextMarkId++, ...region }]);
+  }, []);
+  useRegionDrag(containerRef, redacting, 'redact-mark', onRedactRegion);
 
   // Renders already-placed marks as overlays. Percentage-based sizing keeps
   // them correctly positioned across zoom changes without recomputing here.
@@ -400,79 +487,28 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     };
   }, [marks]);
 
-  // Same drag-to-mark mechanism as redaction, but single-shot: on release
-  // the region goes straight into `pendingRegion`, which opens the content
+  // Same mechanism, single-shot: the released region opens the content
   // picker dialog immediately rather than accumulating into a list.
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!editingRegion || !container) return;
+  const onEditRegionDone = useCallback((region: PageRegion) => {
+    setPendingRegion(region);
+  }, []);
+  useRegionDrag(containerRef, editingRegion, 'editregion-mark', onEditRegionDone);
 
-    container.classList.add('redacting');
+  // Form-field placement: drag the field's area, then collect its details.
+  const onFieldRegionDone = useCallback((region: PageRegion) => {
+    setPendingFieldRegion(region);
+  }, []);
+  useRegionDrag(containerRef, placingField, 'editregion-mark', onFieldRegionDone);
 
-    let drag: { pageEl: HTMLElement; pageIndex: number; startX: number; startY: number; el: HTMLDivElement } | null =
-      null;
-
-    const onDown = (e: PointerEvent) => {
-      const pageEl = (e.target as HTMLElement).closest('.page') as HTMLElement | null;
-      if (!pageEl) return;
-      const rect = pageEl.getBoundingClientRect();
-      const el = document.createElement('div');
-      el.className = 'editregion-mark';
-      pageEl.appendChild(el);
-      drag = {
-        pageEl,
-        pageIndex: Number(pageEl.dataset.pageNumber) - 1,
-        startX: e.clientX - rect.left,
-        startY: e.clientY - rect.top,
-        el,
-      };
-    };
-
-    const onMove = (e: PointerEvent) => {
-      if (!drag) return;
-      const rect = drag.pageEl.getBoundingClientRect();
-      const curX = e.clientX - rect.left;
-      const curY = e.clientY - rect.top;
-      const x = Math.min(drag.startX, curX);
-      const y = Math.min(drag.startY, curY);
-      const w = Math.abs(curX - drag.startX);
-      const h = Math.abs(curY - drag.startY);
-      Object.assign(drag.el.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px` });
-    };
-
-    const onUp = (e: PointerEvent) => {
-      if (!drag) return;
-      const { pageEl, pageIndex, startX, startY, el } = drag;
-      drag = null;
-      el.remove();
-      const rect = pageEl.getBoundingClientRect();
-      const curX = e.clientX - rect.left;
-      const curY = e.clientY - rect.top;
-      const x = Math.min(startX, curX);
-      const y = Math.min(startY, curY);
-      const w = Math.abs(curX - startX);
-      const h = Math.abs(curY - startY);
-      if (w < 6 || h < 6 || rect.width === 0 || rect.height === 0) return;
-      setPendingRegion({
-        pageIndex,
-        xPct: x / rect.width,
-        yPct: y / rect.height,
-        wPct: w / rect.width,
-        hPct: h / rect.height,
-      });
-    };
-
-    container.addEventListener('pointerdown', onDown);
-    container.addEventListener('pointermove', onMove);
-    container.addEventListener('pointerup', onUp);
-    return () => {
-      container.classList.remove('redacting');
-      container.removeEventListener('pointerdown', onDown);
-      container.removeEventListener('pointermove', onMove);
-      container.removeEventListener('pointerup', onUp);
-      drag?.el.remove();
-    };
-  }, [editingRegion]);
+  // Visible-signature placement: the drag finishes the flow started in the
+  // sign dialog (certificate + password are already validated and waiting).
+  const onSignRegionDone = useCallback((region: PageRegion) => {
+    setSignPlacing(false);
+    const req = pendingSignReqRef.current;
+    pendingSignReqRef.current = null;
+    if (req) void doSignRef.current?.(req, region);
+  }, []);
+  useRegionDrag(containerRef, signPlacing, 'editregion-mark', onSignRegionDone);
 
   // Renders the pending region as an overlay while its content dialog is
   // open, so the user can still see exactly which spot they marked.
@@ -494,6 +530,26 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       el.remove();
     };
   }, [pendingRegion]);
+
+  // Same for the pending form-field region while its dialog is open.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !pendingFieldRegion) return;
+    const pageEl = container.querySelector(`.page[data-page-number="${pendingFieldRegion.pageIndex + 1}"]`);
+    if (!pageEl) return;
+    const el = document.createElement('div');
+    el.className = 'editregion-mark';
+    Object.assign(el.style, {
+      left: `${pendingFieldRegion.xPct * 100}%`,
+      top: `${pendingFieldRegion.yPct * 100}%`,
+      width: `${pendingFieldRegion.wPct * 100}%`,
+      height: `${pendingFieldRegion.hPct * 100}%`,
+    });
+    pageEl.appendChild(el);
+    return () => {
+      el.remove();
+    };
+  }, [pendingFieldRegion]);
 
   // A stroke/text-box/etc. the user just created stays "live" in its editor
   // until something commits it — normally clicking the Select tool. Forcing
@@ -550,25 +606,44 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
   useImperativeHandle(ref, () => ({ checkpoint: doCheckpoint }), [doCheckpoint]);
 
+  // The drag-capture modes (redact, region edit, field placement, signature
+  // placement) all grab pointer events on the pages — only ever one at a time.
+  const resetDragModes = () => {
+    setRedacting(false);
+    setEditingRegion(false);
+    setPlacingField(false);
+    setSignPlacing(false);
+    pendingSignReqRef.current = null;
+  };
+
   const selectTool = (next: Tool) => {
     setTool(next);
-    setRedacting(false);
+    resetDragModes();
     const pdfViewer = pdfViewerRef.current;
     if (pdfViewer) pdfViewer.annotationEditorMode = { mode: TOOL_MODE[next] };
   };
 
-  const toggleRedact = () => {
-    setRedacting((v) => !v);
-    setTool('select');
+  const enterDragMode = (wasActive: boolean, set: (v: boolean) => void) => {
     const pdfViewer = pdfViewerRef.current;
     if (pdfViewer) pdfViewer.annotationEditorMode = { mode: AnnotationEditorType.NONE };
+    setTool('select');
+    resetDragModes();
+    if (!wasActive) set(true);
   };
 
-  const toggleEditRegion = () => {
-    setEditingRegion((v) => !v);
-    setTool('select');
-    const pdfViewer = pdfViewerRef.current;
-    if (pdfViewer) pdfViewer.annotationEditorMode = { mode: AnnotationEditorType.NONE };
+  const toggleRedact = () => enterDragMode(redacting, setRedacting);
+  const toggleEditRegion = () => enterDragMode(editingRegion, setEditingRegion);
+  const togglePlaceField = () => enterDragMode(placingField, setPlacingField);
+
+  /** Pushes a tool default (color, size, …) into pdf.js's editor UI
+   *  manager — applies to the current selection or, without one, becomes
+   *  the default for the next created annotation. The manager isn't part
+   *  of PDFViewer's public d.ts (reached via `_layerProperties`, the same
+   *  stability class as the `_pages` access above), hence the cast. */
+  const updateEditorParam = (type: number, value: unknown) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ui = (pdfViewerRef.current as any)?._layerProperties?.annotationEditorUIManager;
+    ui?.updateParams(type, value);
   };
 
   const zoom = (dir: 1 | -1) => {
@@ -728,6 +803,125 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }
   };
 
+  // Pre-compute the next free field name while the user is still dragging,
+  // so the dialog opens with it already filled in.
+  useEffect(() => {
+    if (!placingField) return;
+    let cancelled = false;
+    suggestFieldName(data, t.formFieldNameBase).then((n) => {
+      if (!cancelled) setSuggestedFieldName(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [placingField, data]);
+
+  const doAddField = async (spec: FieldSpec) => {
+    const pdfViewer = pdfViewerRef.current;
+    const region = pendingFieldRegion;
+    if (!pdfViewer?.pdfDocument || !region) return;
+    setFieldBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const withField = await addFormField(bytes, region, spec);
+      setPendingFieldRegion(null);
+      setPlacingField(false);
+      dirtyRef.current = true;
+      onDirtyChange(true);
+      onReplace(withField);
+    } catch (err) {
+      if (err instanceof FieldNameTakenError) {
+        onError(t.formFieldNameTaken); // dialog stays open for a rename
+      } else {
+        onError(`${t.formFieldError}: ${String(err)}`);
+      }
+    } finally {
+      setFieldBusy(false);
+    }
+  };
+
+  const doSign = async (req: SignRequest, region: SignRegion | null) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    setSignBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      const signed = await signPdf(bytes, {
+        p12Bytes: req.p12Bytes,
+        p12Password: req.p12Password,
+        reason: req.reason,
+        region,
+      });
+      setShowSign(false);
+      // Write the signed bytes to disk EXACTLY as produced — any later
+      // rewrite (even a no-op resave) would append to or restructure the
+      // file and show up as "modified after signing" in validators.
+      dirtyRef.current = false;
+      onDirtyChange(false);
+      onReplace(signed);
+      onSave(signed);
+      onNotice(t.signDone);
+    } catch (err) {
+      onError(`${t.signError}: ${String(err)}`);
+    } finally {
+      setSignBusy(false);
+    }
+  };
+  doSignRef.current = doSign;
+
+  const onSignRequest = (req: SignRequest) => {
+    if (protection) {
+      // encrypting rewrites the whole file and would break the signature
+      onError(t.signProtectedConflict);
+      return;
+    }
+    if (req.visible) {
+      pendingSignReqRef.current = req;
+      setShowSign(false);
+      setSignPlacing(true);
+    } else {
+      void doSign(req, null);
+    }
+  };
+
+  const doApplyProtection = async (next: Protection) => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    setProtectBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      onProtectionChange(next);
+      onSave(bytes, next);
+      setShowProtect(false);
+      onNotice(t.protectApplied);
+    } catch (err) {
+      onError(`${t.protectError}: ${String(err)}`);
+    } finally {
+      setProtectBusy(false);
+    }
+  };
+
+  const doRemoveProtection = async () => {
+    const pdfViewer = pdfViewerRef.current;
+    if (!pdfViewer?.pdfDocument) return;
+    setProtectBusy(true);
+    try {
+      await commitPendingEdits();
+      const bytes = await pdfViewer.pdfDocument.saveDocument();
+      onProtectionChange(null);
+      onSave(bytes, null);
+      setShowProtect(false);
+      onNotice(t.protectRemoved);
+    } catch (err) {
+      onError(`${t.protectError}: ${String(err)}`);
+    } finally {
+      setProtectBusy(false);
+    }
+  };
+
   // Placement, moving and resizing is pdf.js's own Stamp editor — we only
   // supply the image. `pasteEditor` lives on the PAGE's AnnotationEditorLayer
   // instance (reached through the page view's builder wrapper), not on the
@@ -860,6 +1054,38 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         <div className="tooldivider" />
 
         <div className="toolgroup">
+          <button
+            className={placingField ? 'iconbtn active' : 'iconbtn'}
+            onClick={togglePlaceField}
+            disabled={!ready}
+            title={t.formFieldHint}
+          >
+            <IconFormField size={16} />
+            {t.formFieldButton}
+          </button>
+          <button
+            className="iconbtn"
+            onClick={() => setShowSign(true)}
+            disabled={!ready || signBusy}
+            title={t.signTitle}
+          >
+            <IconSign size={16} />
+            {signBusy ? t.signSigning : t.signButton}
+          </button>
+          <button
+            className="iconbtn"
+            onClick={() => setShowProtect(true)}
+            disabled={!ready}
+            title={t.protectTitle}
+          >
+            <IconLock size={16} />
+            {t.protectButton}
+          </button>
+        </div>
+
+        <div className="tooldivider" />
+
+        <div className="toolgroup">
           <button className="iconbtn" onClick={() => setShowPages(true)} disabled={!ready} title={t.pagesTitle}>
             <IconPages size={16} />
             {t.pagesButton}
@@ -888,6 +1114,116 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           </button>
         </div>
       </div>
+
+      {(tool === 'highlight' || tool === 'freetext' || tool === 'ink') && (
+        <div className="propsbar">
+          <span className="proplabel">{t.propColor}</span>
+          {(tool === 'highlight' ? HIGHLIGHT_COLORS : PEN_COLORS).map((c) => {
+            const current =
+              tool === 'highlight' ? highlightColor : tool === 'freetext' ? freetextColor : inkColor;
+            return (
+              <button
+                key={c}
+                className={current === c ? 'swatch active' : 'swatch'}
+                style={{ background: c }}
+                aria-label={`${t.propColor} ${c}`}
+                onClick={() => {
+                  if (tool === 'highlight') {
+                    setHighlightColor(c);
+                    updateEditorParam(AnnotationEditorParamsType.HIGHLIGHT_COLOR, c);
+                  } else if (tool === 'freetext') {
+                    setFreetextColor(c);
+                    updateEditorParam(AnnotationEditorParamsType.FREETEXT_COLOR, c);
+                  } else {
+                    setInkColor(c);
+                    updateEditorParam(AnnotationEditorParamsType.INK_COLOR, c);
+                  }
+                }}
+              />
+            );
+          })}
+          {tool === 'freetext' && (
+            <>
+              <span className="proplabel">{t.propSize}</span>
+              <input
+                type="range"
+                min={8}
+                max={48}
+                value={freetextSize}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setFreetextSize(v);
+                  updateEditorParam(AnnotationEditorParamsType.FREETEXT_SIZE, v);
+                }}
+              />
+              <span className="propvalue">{freetextSize}</span>
+            </>
+          )}
+          {tool === 'ink' && (
+            <>
+              <span className="proplabel">{t.propThickness}</span>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={inkThickness}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setInkThickness(v);
+                  updateEditorParam(AnnotationEditorParamsType.INK_THICKNESS, v);
+                }}
+              />
+              <span className="propvalue">{inkThickness}</span>
+              <span className="proplabel">{t.propOpacity}</span>
+              <input
+                type="range"
+                min={10}
+                max={100}
+                value={inkOpacity}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setInkOpacity(v);
+                  // pdf.js v6 expects stroke opacity on a 0–1 scale
+                  updateEditorParam(AnnotationEditorParamsType.INK_OPACITY, v / 100);
+                }}
+              />
+              <span className="propvalue">{inkOpacity}%</span>
+            </>
+          )}
+          {tool === 'highlight' && (
+            <>
+              <span className="proplabel" title={t.propThicknessFreeHint}>
+                {t.propThickness}
+              </span>
+              <input
+                type="range"
+                min={8}
+                max={24}
+                value={highlightThickness}
+                title={t.propThicknessFreeHint}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setHighlightThickness(v);
+                  updateEditorParam(AnnotationEditorParamsType.HIGHLIGHT_THICKNESS, v);
+                }}
+              />
+              <span className="propvalue">{highlightThickness}</span>
+            </>
+          )}
+        </div>
+      )}
+
+      {placingField && !pendingFieldRegion && (
+        <div className="redactbar">
+          <span className="faint">{t.formFieldHint}</span>
+        </div>
+      )}
+
+      {signPlacing && (
+        <div className="redactbar">
+          <span className="faint">{t.signPlaceHint}</span>
+        </div>
+      )}
 
       {(redacting || marks.length > 0) && (
         <div className="redactbar">
@@ -990,6 +1326,30 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           result={ocrResult}
           onStart={doOcr}
           onClose={() => setShowOcr(false)}
+        />
+      )}
+
+      {pendingFieldRegion && (
+        <FormFieldDialog
+          suggestedName={suggestedFieldName}
+          busy={fieldBusy}
+          onCreate={doAddField}
+          onCancel={() => setPendingFieldRegion(null)}
+        />
+      )}
+
+      {showSign && (
+        <SignDialog busy={signBusy} onSign={onSignRequest} onCancel={() => setShowSign(false)} />
+      )}
+
+      {showProtect && (
+        <ProtectDialog
+          protection={protection}
+          inherited={protectionInherited}
+          busy={protectBusy}
+          onApply={doApplyProtection}
+          onRemove={doRemoveProtection}
+          onCancel={() => setShowProtect(false)}
         />
       )}
     </div>

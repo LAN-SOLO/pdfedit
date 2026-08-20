@@ -323,7 +323,75 @@ entsprechend mehr Testzeit.
   Tz-Streckung für Positionstreue) — genau der Teil, der beim
   oberflächlichen Testen (nur „wird Text gefunden?") unauffällig geblieben
   wäre, aber bei einem Byte-Level-Check sofort aufgefallen ist.
-- **v0.11.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
+- **v0.11.0 — Acrobat-Parität: Formulare erstellen, digital signieren,
+  Passwortschutz, Werkzeug-Eigenschaften ✅:** Vier Feature-Blöcke in einem
+  Release, alle vorab als Node-Prototyp gegen die echten Module verifiziert,
+  dann im Browser-E2E:
+  - **Werkzeug-Eigenschaften-Leiste:** Bei Markieren/Text/Zeichnen erscheint
+    eine Leiste mit Farbfeldern und Slidern (Text: Farbe+Größe; Zeichnen:
+    Farbe+Stärke+Deckkraft; Markieren: Farbe+Stärke). Technisch über
+    `AnnotationEditorUIManager.updateParams()` (erreichbar via
+    `pdfViewer._layerProperties.annotationEditorUIManager` — gleiche
+    Stabilitätsklasse wie `_pages`). Wirkt auf die Auswahl ODER als Default
+    für neue Anmerkungen. **Lektion:** `INK_OPACITY` erwartet in pdf.js v6
+    die 0–1-Skala (`(opacity ?? 1) * 255` im Alpha-Picker), nicht 0–100 wie
+    im alten Viewer-Toolbar-Code. Grenze ehrlich dokumentiert: Schriftart/
+    Ausrichtung des FreeText-Editors sind in pdf.js fest — steht so im
+    Handbuch, nicht versteckt.
+  - **Formularfelder erstellen** (`formFields.ts` + Drag-Platzierung wie beim
+    Schwärzen): Textfeld/mehrzeilig/Kontrollkästchen/Auswahlliste als echte
+    AcroForm-Felder via pdf-lib (`createTextField` …, `addToPage` mit
+    y-Flip aus Seiten-Prozenten). Feldnamen-Vorschlag (`feld_N`) wird schon
+    während des Aufziehens berechnet; Namenskollision → verständliche
+    Meldung, Dialog bleibt offen. Sofort ausfüllbar (ENABLE_FORMS),
+    Flachrechnen-Button erscheint automatisch.
+  - **Digitale Signatur** (`sign.ts` + SignDialog): PKCS#12 (.p12/.pfx) via
+    node-forge — funktioniert mit modernen (AES/PBES2) UND legacy (3DES)
+    Dateien. Placeholder low-level über pdf-lib (Sig-Dict + Widget + 
+    AcroForm/SigFlags, `useObjectStreams: false` für literale Offsets),
+    ByteRange-Fixup, CMS `adbe.pkcs7.detached` mit SHA-256 und signierten
+    Attributen (contentType, messageDigest, signingTime). Kryptografisch
+    selbst-verifiziert (messageDigest == Digest der ByteRanges; RSA über
+    DER(SET der signedAttrs) prüft gegen Signer-Zertifikat). Sichtbares
+    Feld (aufziehen, Appearance mit Name/Datum) oder unsichtbar; Dialog
+    zeigt nach Zertifikat+Passwort sofort CN/Aussteller/Gültigkeit. Nach dem
+    Signieren werden die Bytes UNVERÄNDERT auf Platte geschrieben (kein
+    Resave — der würde als „nach Signatur geändert" auffallen). Kombination
+    mit Passwortschutz bewusst blockiert (Verschlüsseln würde die Signatur
+    brechen) — klare Meldung statt kaputter Datei.
+  - **Passwortschutz** (`protect.ts` + ProtectDialog + PasswordPrompt):
+    pdf-lib gegen den Fork `@cantoo/pdf-lib` 2.9.1 getauscht (Alias
+    `pdf-lib@npm:@cantoo/pdf-lib` — alle bestehenden Imports/Low-Level-
+    Nutzungen unverändert). Setzen/Ändern: AES-256 mit User-/Owner-Passwort
+    und Berechtigungen (Drucken/Kopieren/Ändern/Ausfüllen/Kommentieren,
+    per pdf.js `getPermissions()` byte-genau bestätigt). Geschützte PDFs:
+    Öffnen-Prompt (falsches Passwort → Meldung, richtiges → auf), Arbeits-
+    kopie wird IM SPEICHER entschlüsselt (alle Werkzeuge funktionieren
+    ohne Passwort-Durchreichen), Speichern verschlüsselt wieder mit dem
+    bekannten Passwort („geerbter Schutz", im Dialog so benannt) — bis
+    „Passwort entfernen" unverschlüsselt speichert.
+    **Lektion (Fork-Innereien):** Nach `load(bytes, {password})` bleiben
+    drei Leichen im Objekt-Kontext, die einen Resave vergiften: das alte
+    /Encrypt-Dict, alte /ObjStm-Rohströme (Ciphertext) und der alte
+    XRef-Stream als PDFInvalidObject — dessen Dict (`/Encrypt 7 0 R`)
+    wird beim nächsten Parse wieder als Trailer-Info eingelesen und lässt
+    die „entschlüsselte" Datei erneut als verschlüsselt erscheinen.
+    `decryptPdf()` räumt alle drei plus `trailerInfo.Encrypt` ab.
+  - Außerdem: Update-Zugang überall (Hilfe-Fenster hat jetzt Footer mit
+    Version + „Nach Updates suchen"/Update-Button; Tabbar zeigt bei
+    verfügbarem Update einen Button; ?-FAB bekommt einen Badge-Punkt),
+    Tutorial um zwei Schritte erweitert und `SEEN_KEY` auf v2 — zeigt sich
+    nach dem Update einmalig erneut. Handbuch: drei neue Kapitel
+    (Formularfelder, Digital signieren, Passwort & Berechtigungen) + 
+    „Anmerken & Eigenschaften". Die vier Drag-Modi (Schwärzen, Bereich,
+    Formularfeld, Signaturfeld) teilen sich jetzt einen `useRegionDrag`-
+    Hook statt vier Kopien.
+    **Lektion (Testumgebung):** Ein Vite-Dev-Server aus einer FRÜHEREN
+    Session hielt Port 1420 und servierte das alte pdf-lib-Prebundle —
+    `doc.encrypt is not a function`, obwohl Quellcode und node_modules
+    längst richtig waren. Bei „Modul-API fehlt im Browser, in Node aber
+    da" zuerst `lsof -iTCP:<port>` prüfen, nicht den eigenen Code.
+- **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das
   Zeitfenster bis zum Beta sprengen. Pragmatischer, ehrlich kommunizierter
@@ -333,12 +401,12 @@ entsprechend mehr Testzeit.
   wird exakt darüber platziert. Kein Reflow über Absatzgrenzen hinweg,
   keine Vektor-Objektbearbeitung — das steht so auch im Dialog und im
   Disclaimer, nicht nur im Kleingedruckten.
-- **v0.12.0 — Letztes Beta: Politur & Gate:** Free/inked-Kennzeichnung in
+- **v0.13.0 — Letztes Beta: Politur & Gate:** Free/inked-Kennzeichnung in
   der UI (welche Werkzeuge zu welchem Tier gehören — Bezahl-Backend folgt
   separat, hier nur ehrliche UI-Kennzeichnung), Tastaturkürzel für die
   wichtigsten Aktionen, Fehlerbehandlung/Robustheit-Durchgang (jede
   Dialog-/Speicher-Fehlerpfad geprüft), Menüleiste nativ (macOS/Windows/
-  Linux), finaler Regressionsdurchlauf aller Phasen v0.2.0–v0.11.0 an
+  Linux), finaler Regressionsdurchlauf aller Phasen v0.2.0–v0.12.0 an
   einem einzigen Dokument nacheinander. Danach beginnt der intensive Test.
 
 ## 5. Website

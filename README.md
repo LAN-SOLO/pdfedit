@@ -20,7 +20,14 @@ Bestätigung. Releases entstehen per Git-Tag `v*` (`.github/workflows/build.yml`
 baut, signiert, generiert das Changelog aus den Commits und published
 `latest.json`). Signatur-Key: `~/.tauri/pdfedit-updater.key`.
 
-Renderer und PDF-Engine (Phase 0/1 im Plan) ziehen als Updates ein.
+Stand v0.11.0: Anzeigen/Suchen/Tabs, Anmerkungen (Markieren, Text, Zeichnen —
+mit Eigenschaften-Leiste für Farbe/Größe/Stärke/Deckkraft), Stempel &
+Bild-Signatur, Formulare ausfüllen **und erstellen** (Textfeld,
+Kontrollkästchen, Auswahlliste), **digitale Signatur per Zertifikat**
+(PKCS#12 → adbe.pkcs7.detached), **Passwortschutz** (AES-256 setzen/ändern/
+entfernen, Berechtigungen; geschützte PDFs öffnen), Seiten organisieren,
+Komprimieren, echtes Schwärzen, OCR, Bereich bearbeiten, In-App-Hilfe mit
+Tutorial & Handbuch.
 
 ## Entwicklung
 

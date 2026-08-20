@@ -8,7 +8,16 @@ import { t } from './i18n';
 import UpdateModal from './components/UpdateModal';
 import Help from './components/Help';
 import NewPdfModal, { CreatedPdf } from './components/NewPdfModal';
+import PasswordPrompt from './components/PasswordPrompt';
 import PdfViewer, { PdfViewerHandle } from './components/PdfViewer';
+import {
+  allPermissions,
+  decryptPdf,
+  encryptPdf,
+  isPasswordProtected,
+  isWrongPasswordError,
+  type Protection,
+} from './protect';
 
 interface OpenDoc {
   id: number;
@@ -16,6 +25,17 @@ interface OpenDoc {
   data: Uint8Array;
   path: string | null;
   dirty: boolean;
+  /** Applied at save time; the in-memory `data` always stays unencrypted. */
+  protection: Protection | null;
+  /** Protection taken over from opening an encrypted file. */
+  protectionInherited: boolean;
+}
+
+/** A just-opened, still-locked PDF waiting for its password. */
+interface PendingProtected {
+  name: string;
+  data: Uint8Array;
+  path: string | null;
 }
 
 export default function App() {
@@ -87,13 +107,63 @@ export default function App() {
   }, [activeId]);
 
   const addDoc = useCallback(
-    async (name: string, data: Uint8Array, path: string | null) => {
+    async (
+      name: string,
+      data: Uint8Array,
+      path: string | null,
+      protection: Protection | null = null,
+      protectionInherited = false
+    ) => {
       await checkpointActive();
       const id = nextId.current++;
-      setDocs((d) => [...d, { id, name, data, path, dirty: false }]);
+      setDocs((d) => [...d, { id, name, data, path, dirty: false, protection, protectionInherited }]);
       setActiveId(id);
     },
     [checkpointActive]
+  );
+
+  const [pendingProtected, setPendingProtected] = useState<PendingProtected | null>(null);
+  const [pwFailed, setPwFailed] = useState(false);
+
+  // Every open path funnels through here: password-protected files stop at
+  // the prompt; everything else opens directly.
+  const openBytes = useCallback(
+    async (name: string, data: Uint8Array, path: string | null) => {
+      if (await isPasswordProtected(data)) {
+        setPwFailed(false);
+        setPendingProtected({ name, data, path });
+        return;
+      }
+      await addDoc(name, data, path);
+    },
+    [addDoc]
+  );
+
+  // The working copy is decrypted in memory so every tool just works;
+  // saving re-encrypts with the same password (kept as inherited
+  // protection) until the user changes or removes it in the Protect dialog.
+  const onPasswordSubmit = useCallback(
+    async (password: string) => {
+      if (!pendingProtected) return;
+      try {
+        const decrypted = await decryptPdf(pendingProtected.data, password);
+        const protection: Protection = {
+          userPassword: password,
+          ownerPassword: password,
+          permissions: allPermissions,
+        };
+        setPendingProtected(null);
+        await addDoc(pendingProtected.name, decrypted, pendingProtected.path, protection, true);
+      } catch (err) {
+        if (isWrongPasswordError(err)) {
+          setPwFailed(true);
+        } else {
+          setPendingProtected(null);
+          toast(`${t.loadError}: ${String(err)}`, true);
+        }
+      }
+    },
+    [pendingProtected, addDoc, toast]
   );
 
   const setDirty = useCallback((id: number, dirty: boolean) => {
@@ -131,12 +201,12 @@ export default function App() {
       try {
         const buf = await api.readPdf(path);
         const name = path.split('/').pop()?.split('\\').pop() ?? 'PDF';
-        await addDoc(name, new Uint8Array(buf), path);
+        await openBytes(name, new Uint8Array(buf), path);
       } catch (err) {
         toast(`${t.loadError}: ${String(err)}`, true);
       }
     },
-    [addDoc, toast]
+    [openBytes, toast]
   );
 
   // native drag & drop (Tauri delivers file paths, not File objects)
@@ -171,9 +241,9 @@ export default function App() {
   const onBrowserFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
-      await addDoc(file.name, new Uint8Array(await file.arrayBuffer()), null);
+      await openBytes(file.name, new Uint8Array(await file.arrayBuffer()), null);
     },
-    [addDoc]
+    [openBytes]
   );
 
   const onCreated = useCallback(
@@ -185,14 +255,17 @@ export default function App() {
   );
 
   const saveDoc = useCallback(
-    async (id: number, bytes: Uint8Array) => {
+    async (id: number, bytes: Uint8Array, protectionOverride?: Protection | null) => {
       const doc = docsRef.current.find((d) => d.id === id);
       if (!doc) return;
       try {
+        const protection = protectionOverride !== undefined ? protectionOverride : doc.protection;
+        // encrypt only what goes to disk — the working copy stays plain
+        const fileBytes = protection ? await encryptPdf(bytes, protection) : bytes;
         if (isTauri && doc.path) {
-          await api.writePdf(doc.path, bytesToBase64(bytes));
+          await api.writePdf(doc.path, bytesToBase64(fileBytes));
         } else {
-          downloadBytes(doc.name, bytes);
+          downloadBytes(doc.name, fileBytes);
         }
         setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes, dirty: false } : x)));
         toast(t.saved);
@@ -202,6 +275,12 @@ export default function App() {
     },
     [toast]
   );
+
+  const setProtection = useCallback((id: number, protection: Protection | null) => {
+    setDocs((d) =>
+      d.map((x) => (x.id === id ? { ...x, protection, protectionInherited: false } : x))
+    );
+  }, []);
 
   // In-memory replace (page reorder/rotate/delete/merge) — unlike saveDoc
   // this never touches disk; it only updates the working bytes so the
@@ -269,6 +348,11 @@ export default function App() {
           <button className="tabaction" onClick={() => setShowNewModal(true)}>
             {t.newPdf}
           </button>
+          {update !== 'unchecked' && update !== null && (
+            <button className="tabaction update" onClick={() => setShowUpdateModal(true)}>
+              {t.updateAvailable(update.version)}
+            </button>
+          )}
         </div>
       )}
 
@@ -321,10 +405,14 @@ export default function App() {
           ref={viewerRef}
           data={active.data}
           name={active.name}
+          protection={active.protection}
+          protectionInherited={active.protectionInherited}
           onDirtyChange={(dirty) => setDirty(active.id, dirty)}
-          onSave={(bytes) => saveDoc(active.id, bytes)}
+          onSave={(bytes, protectionOverride) => saveDoc(active.id, bytes, protectionOverride)}
           onReplace={(bytes) => replaceDoc(active.id, bytes)}
+          onProtectionChange={(p) => setProtection(active.id, p)}
           onError={(msg) => toast(msg, true)}
+          onNotice={(msg) => toast(msg)}
         />
       )}
 
@@ -353,7 +441,23 @@ export default function App() {
         <UpdateModal info={update} onToast={toast} onClose={() => setShowUpdateModal(false)} />
       )}
 
-      <Help />
+      {pendingProtected && (
+        <PasswordPrompt
+          name={pendingProtected.name}
+          failed={pwFailed}
+          onSubmit={onPasswordSubmit}
+          onCancel={() => setPendingProtected(null)}
+        />
+      )}
+
+      <Help
+        version={version}
+        updateState={update === 'unchecked' ? 'unknown' : update === null ? 'none' : 'available'}
+        updateVersion={update !== 'unchecked' && update !== null ? update.version : null}
+        checking={checking}
+        onCheckUpdate={doCheckUpdate}
+        onOpenUpdate={() => setShowUpdateModal(true)}
+      />
       {toastMsg && <div className={`toast${toastMsg.err ? ' error' : ''}`}>{toastMsg.msg}</div>}
     </div>
   );
