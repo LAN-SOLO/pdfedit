@@ -1200,14 +1200,25 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
       // click → PDF points (viewport css px scale can differ from rect px)
       const vs = viewport.width / canvasRect.width;
-      const [px, py] = viewport.convertToPdfPoint(
+      const pdfPoint = viewport.convertToPdfPoint(
         (e.clientX - canvasRect.left) * vs,
         (e.clientY - canvasRect.top) * vs
       );
+      const px = pdfPoint[0];
+      const py = pdfPoint[1];
 
       const fontsPromise = ensureSystemFonts();
       const page = await pdfViewer.pdfDocument.getPage(pageIndex + 1);
       const tc = await page.getTextContent();
+      // defensive: some WebKit paths surfaced getTextContent results whose
+      // items weren't iterable — fail with a clear message, and iterate by
+      // index so nothing here depends on the iterator protocol
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawItems: any[] = Array.isArray((tc as any)?.items) ? (tc as any).items : [];
+      if (rawItems.length === 0) {
+        onError(t.textEditNoText);
+        return;
+      }
 
       interface It {
         str: string;
@@ -1218,9 +1229,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         size: number;
       }
       const its: It[] = [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      for (const item of tc.items as any[]) {
-        if (!item.str || !item.width) continue;
+      for (let idx = 0; idx < rawItems.length; idx++) {
+        const item = rawItems[idx];
+        if (!item?.str || !item.width || !item.transform) continue;
         const size =
           Math.hypot(item.transform[2], item.transform[3]) || Math.abs(item.transform[3]) || 10;
         its.push({
@@ -1263,7 +1274,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         x1: number;
       }
       const runs: Run[] = [];
-      for (const it of line) {
+      for (let li = 0; li < line.length; li++) {
+        const it = line[li];
         const last = runs[runs.length - 1];
         if (last && last.fontName === it.fontName && it.tx - last.x1 < hit.size * 0.6) {
           last.items.push(it);
@@ -1313,14 +1325,20 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       const cctx = canvas.getContext('2d', { willReadFrequently: true });
       if (cctx) {
         const toCanvas = (pdfX: number, pdfY: number): [number, number] => {
-          const [vx, vy] = viewport.convertToViewportPoint(pdfX, pdfY);
+          const vp = viewport.convertToViewportPoint(pdfX, pdfY);
+          const vx = vp[0];
+          const vy = vp[1];
           return [
             Math.min(canvas.width - 1, Math.max(0, Math.round((vx / viewport.width) * canvas.width))),
             Math.min(canvas.height - 1, Math.max(0, Math.round((vy / viewport.height) * canvas.height))),
           ];
         };
-        const [cx0, cy0] = toCanvas(run.x0, baseline + ascent * sizePt);
-        const [cx1, cy1] = toCanvas(run.x1, baseline + descent * sizePt);
+        const c0 = toCanvas(run.x0, baseline + ascent * sizePt);
+        const c1 = toCanvas(run.x1, baseline + descent * sizePt);
+        const cx0 = c0[0];
+        const cy0 = c0[1];
+        const cx1 = c1[0];
+        const cy1 = c1[1];
         const xLo = Math.min(cx0, cx1);
         const xHi = Math.max(cx0, cx1);
         const yLo = Math.min(cy0, cy1);
@@ -1350,20 +1368,24 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             }
           }
           let best = 0;
-          for (const c of counts.values()) {
+          counts.forEach((c) => {
             if (c.n > best) {
               best = c.n;
               bg = c.rgb;
             }
-          }
+          });
           const hx = (n: number) => n.toString(16).padStart(2, '0');
           colorHex = `#${hx(darkestRgb[0])}${hx(darkestRgb[1])}${hx(darkestRgb[2])}`;
         }
       }
 
       // marker box in viewport px for the overlay
-      const [ovx0, ovy0] = viewport.convertToViewportPoint(run.x0, baseline + ascent * sizePt);
-      const [ovx1, ovy1] = viewport.convertToViewportPoint(run.x1, baseline + descent * sizePt);
+      const ov0 = viewport.convertToViewportPoint(run.x0, baseline + ascent * sizePt);
+      const ov1 = viewport.convertToViewportPoint(run.x1, baseline + descent * sizePt);
+      const ovx0 = ov0[0];
+      const ovy0 = ov0[1];
+      const ovx1 = ov1[0];
+      const ovy1 = ov1[1];
 
       setPendingRunEdit({
         pageIndex,
@@ -1391,7 +1413,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     const onClick = (e: MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      void handleClick(e).catch((err) => onError(`${t.textEditError}: ${String(err)}`));
+      void handleClick(e).catch((err) => {
+        // include the top of the stack — "TypeError: …" alone is
+        // undebuggable from a user screenshot
+        const stack = String((err as Error)?.stack ?? err)
+          .split('\n')
+          .slice(0, 2)
+          .join(' ');
+        onError(`${t.textEditError}: ${stack.slice(0, 220)}`);
+      });
     };
 
     container.addEventListener('click', onClick, true);

@@ -520,6 +520,23 @@ entsprechend mehr Testzeit.
     ::before-Pseudo-Element entsteht in WKWebView offenbar gar nicht
     (pdf.js' Nesting-Regeln) — Icon liegt jetzt als background-image
     direkt auf dem Button, ::before wird unterdrückt.
+- **v0.11.5 — Hotfix „Text ändern" in der Desktop-App ✅:** In der
+  WKWebView der App (NICHT in Chrome, NICHT in Playwright-WebKit 26.5 —
+  beides reproduzierte fehlerfrei, inkl. eines Nachbaus mit eingebetteten
+  Subset-Fonts) warf der Klick-Pfad „TypeError: undefined is not a
+  function (near '...i of t...')" — die WebKit-Signatur eines for-of über
+  etwas Nicht-Iterierbares. Da die exakte Stelle aus dem Screenshot nicht
+  hervorgeht: kompletter Klick-Pfad defensiv umgebaut (Index-Schleifen
+  statt for-of, Array.isArray-Guard auf getTextContent().items,
+  Destrukturierungen von convertToPdf/ViewportPoint durch Indexzugriffe
+  ersetzt, Map-Iteration via forEach) — die Fehlerklasse ist damit
+  konstruktiv ausgeschlossen. Zusätzlich enthält der Fehler-Toast von
+  „Text ändern" jetzt die oberste Stack-Zeile, damit ein etwaiger
+  Restfehler per Screenshot exakt lokalisierbar ist.
+  **Neues Testwerkzeug:** Playwright-WebKit (scratchpad/wkrepro) — echte
+  WebKit-Engine headless für WKWebView-Paritätstests; hätte künftige
+  Safari-only-Bugs vor dem Release gefangen und gehört in jeden
+  E2E-Durchlauf vor dem Tagging.
 - **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das
