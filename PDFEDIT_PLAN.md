@@ -537,6 +537,23 @@ entsprechend mehr Testzeit.
   WebKit-Engine headless für WKWebView-Paritätstests; hätte künftige
   Safari-only-Bugs vor dem Release gefangen und gehört in jeden
   E2E-Durchlauf vor dem Tagging.
+- **v0.11.7 — Hotfix „Text ändern", Ursache endgültig gefunden ✅:** Der
+  v0.11.5-Umbau traf die falsche Stelle — der Stack-Toast zeigte danach
+  exakt auf pdf.js selbst: `PDFPageProxy.getTextContent()` iteriert in
+  pdf.js v6 den Stream per `for await (const value of readableStream)`,
+  und WKWebView implementiert `ReadableStream[Symbol.asyncIterator]`
+  nicht (die Minified-Variablen dieser Zeile heißen wortwörtlich `i` und
+  `t` — daher „near '...i of t...'"). Fix: `src/streamPolyfill.ts`
+  installiert den Standard-Async-Iterator (+ `.values()`) guarded auf
+  `ReadableStream.prototype`, als allererster Import in `main.tsx` —
+  repariert damit auch pdf.js' zweite `for await`-Stelle
+  (CompressionStream-Pfad). Fehler-Toast nennt jetzt zusätzlich
+  `String(err)`, denn WebKit-Stacks enthalten keine Message-Zeile.
+  **E2E-Beweis (Playwright-WebKit, Async-Iterator per initScript
+  gelöscht = WKWebView-Simulation):** altes Bundle → exakt der
+  Screenshot-Fehler (`index-2PoxtWp7.js:136:107986`), neues Bundle →
+  Dialog öffnet; nativer WebKit ohne Simulation → Dialog öffnet (keine
+  Regression).
 - **v0.12.0 — Text- & Bildbearbeitung (inked, pragmatischer Ansatz):** Ein
   echter Content-Stream-Editor (bestehenden Text an Ort und Stelle
   umfließen lassen) ist ein Mehrmonatsprojekt für sich und würde das

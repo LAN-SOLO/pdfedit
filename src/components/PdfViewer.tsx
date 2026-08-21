@@ -1414,13 +1414,13 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       e.preventDefault();
       e.stopPropagation();
       void handleClick(e).catch((err) => {
-        // include the top of the stack — "TypeError: …" alone is
-        // undebuggable from a user screenshot
-        const stack = String((err as Error)?.stack ?? err)
+        // WebKit stacks carry no message line — prepend String(err) so the
+        // toast names the error AND the top stack frame
+        const top = String((err as Error)?.stack ?? '')
           .split('\n')
-          .slice(0, 2)
+          .slice(0, 1)
           .join(' ');
-        onError(`${t.textEditError}: ${stack.slice(0, 220)}`);
+        onError(`${t.textEditError}: ${String(err)} ${top}`.slice(0, 260));
       });
     };
 
