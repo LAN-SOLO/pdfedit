@@ -300,6 +300,8 @@ const de = {
   textEditNote:
     'Der Original-Abschnitt wird mit der Hintergrundfarbe der Seite überdeckt und der neue Text als echter, durchsuchbarer Text exakt an derselben Position gesetzt. Ehrlich gesagt: Das Original bleibt unsichtbar in der Datei zurück (endgültig entfernen: Schwärzen).',
   textEditNoText: 'An dieser Stelle wurde kein Text gefunden — bitte direkt auf Text klicken.',
+  textEditNoTextOnPage:
+    'Diese Seite enthält keinen editierbaren Text: Die Buchstaben sind als Grafik/Vektorpfade gespeichert (typisch für „Drucken als PDF" und Scans). Korrekturen gehen über „Ersetzen" (Bereich überdecken) — oder erst OCR ausführen, um durchsuchbaren Text zu hinterlegen.',
   textEditError: 'Text ändern fehlgeschlagen',
   // objects panel
   sidebarTabPages: 'Seiten',
@@ -323,6 +325,12 @@ const de = {
   textEditMatchFamily: (name: string) => `Nächster Treffer vorausgewählt: ${name}`,
   textEditMatchFallback: (name: string) =>
     `Originalschrift nicht installiert — Ersatz: ${name}. Laufweite kann leicht abweichen.`,
+  textEditMatchEmbedded:
+    'Originalschrift aus dem PDF wird direkt wiederverwendet — das Schriftbild bleibt exakt erhalten.',
+  textEditFontEmbedded: (name: string | null) =>
+    name ? `Originalschrift aus dem PDF (${name})` : 'Originalschrift aus dem PDF',
+  textEditEmbeddedMissingGlyph: (ch: string) =>
+    `„${ch}" ist in der eingebetteten Originalschrift nicht enthalten (Teilschrift) — bitte eine andere Schrift wählen.`,
   fontStandardGroup: 'Standardschriften',
   stdFontLabel: (key: string) => {
     const base = key.startsWith('times') ? 'Times' : key.startsWith('courier') ? 'Courier' : 'Helvetica';
@@ -633,6 +641,8 @@ const en: typeof de = {
   textEditNote:
     'The original run is covered with the page background color and the new text is placed at the exact same position as real, searchable text. Honestly: the original remains invisibly in the file (remove for good: redaction).',
   textEditNoText: 'No text found at this spot — please click directly on text.',
+  textEditNoTextOnPage:
+    'This page has no editable text: the letters are stored as graphics/vector paths (typical for “print to PDF” and scans). Use “Replace” (cover the area) to make corrections — or run OCR first to add searchable text.',
   textEditError: 'Edit text failed',
   // objects panel
   sidebarTabPages: 'Pages',
@@ -656,6 +666,12 @@ const en: typeof de = {
   textEditMatchFamily: (name: string) => `Closest match preselected: ${name}`,
   textEditMatchFallback: (name: string) =>
     `Original font not installed — substitute: ${name}. Letter spacing may differ slightly.`,
+  textEditMatchEmbedded:
+    'The PDF’s own embedded font is reused directly — the typeface stays exactly as it was.',
+  textEditFontEmbedded: (name: string | null) =>
+    name ? `Original font from the PDF (${name})` : 'Original font from the PDF',
+  textEditEmbeddedMissingGlyph: (ch: string) =>
+    `“${ch}” is not part of the embedded original font (subset) — please pick another font.`,
   fontStandardGroup: 'Standard fonts',
   stdFontLabel: (key: string) => {
     const base = key.startsWith('times') ? 'Times' : key.startsWith('courier') ? 'Courier' : 'Helvetica';

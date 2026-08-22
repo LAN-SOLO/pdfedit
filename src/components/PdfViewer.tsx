@@ -50,6 +50,7 @@ import { api, isTauri, type SystemFont } from '../api';
 import TextEditDialog, { type TextEditSpec } from './TextEditDialog';
 import { applyRunEdit } from '../textEdit';
 import { matchFont, parsePdfFontName, type FontMatch } from '../fontMatch';
+import { probeEmbeddedFont, type EmbeddedFontInfo } from '../embeddedFont';
 import {
   IconSelect,
   IconHighlight,
@@ -128,6 +129,9 @@ interface PendingRunEdit {
   bg: [number, number, number];
   detectedLabel: string | null;
   match: FontMatch | null;
+  /** The PDF's own embedded font program, when it is reusable — the
+   *  substitute-free path that keeps the exact original typeface. */
+  embedded: EmbeddedFontInfo | null;
   /** Marker box in viewport px (relative to the canvasWrapper). */
   overlay: { left: number; top: number; width: number; height: number };
 }
@@ -469,7 +473,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     eventBus.on('annotationeditorstateschanged', onEditorState);
     eventBus.on('updatefindmatchescount', onFindMatches);
 
-    const loadingTask = pdfjsLib.getDocument({ data: data.slice() });
+    // fontExtraProperties keeps the sanitized font programs on commonObjs —
+    // the line-edit tool re-embeds them so edits keep the exact typeface
+    const loadingTask = pdfjsLib.getDocument({ data: data.slice(), fontExtraProperties: true });
     loadingTask.promise
       .then((pdfDocument) => {
         if (destroyed) {
@@ -1214,9 +1220,16 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       // items weren't iterable — fail with a clear message, and iterate by
       // index so nothing here depends on the iterator protocol
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rawItems: any[] = Array.isArray((tc as any)?.items) ? (tc as any).items : [];
+      const rawItemsSrc = (tc as any)?.items;
+      const rawItems: any[] = Array.isArray(rawItemsSrc)
+        ? rawItemsSrc
+        : rawItemsSrc
+          ? Array.from(rawItemsSrc)
+          : [];
       if (rawItems.length === 0) {
-        onError(t.textEditNoText);
+        // page genuinely has no text operators (vector-outline "print to
+        // PDF" output, scans) — explain that instead of "click on text"
+        onError(t.textEditNoTextOnPage);
         return;
       }
 
@@ -1242,6 +1255,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           w: item.width,
           size,
         });
+      }
+
+      if (its.length === 0) {
+        onError(t.textEditNoTextOnPage);
+        return;
       }
 
       let hit = its.find(
@@ -1299,10 +1317,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const style = (tc as any).styles?.[run.fontName];
       let psName = '';
+      let embedded: EmbeddedFontInfo | null = null;
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const fontObj = (page as any).commonObjs.get(run.fontName);
         psName = fontObj?.name ?? '';
+        // first choice: the PDF's own embedded font program (available via
+        // fontExtraProperties) — reusable only when its cmap still maps the
+        // run's characters, otherwise the installed-font match takes over
+        embedded = probeEmbeddedFont(fontObj?.data, text, run.x1 - run.x0, hit.size);
       } catch {
         // font not resolved yet — matching falls back to the css class
       }
@@ -1400,6 +1423,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         bg,
         detectedLabel: detected.psName || null,
         match,
+        embedded,
         overlay: {
           left: Math.min(ovx0, ovx1),
           top: Math.min(ovy0, ovy1),
@@ -1449,7 +1473,23 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     return () => el.remove();
   }, [pendingRunEdit]);
 
+  const embeddedFaceRef = useRef<FontFace | null>(null);
   const previewFontFamily = async (choice: FreetextFontChoice): Promise<string> => {
+    if (choice.kind === 'embedded') {
+      const fontBytes = pendingRunEdit?.embedded?.bytes;
+      if (!fontBytes) return cssFontFamily(choice);
+      // one live face at a time — the next picked run replaces it
+      if (embeddedFaceRef.current) document.fonts.delete(embeddedFaceRef.current);
+      const buf = fontBytes.buffer.slice(
+        fontBytes.byteOffset,
+        fontBytes.byteOffset + fontBytes.byteLength
+      ) as ArrayBuffer;
+      const face = new FontFace('pdfedit-embedded-preview', buf);
+      await face.load();
+      document.fonts.add(face);
+      embeddedFaceRef.current = face;
+      return '"pdfedit-embedded-preview"';
+    }
     if (choice.kind === 'system') await ensureFontFace(choice);
     return cssFontFamily(choice);
   };
@@ -1469,6 +1509,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           fontBytes = new Uint8Array(await api.readFont(spec.choice.path));
           fontBytesCacheRef.current.set(spec.choice.path, fontBytes);
         }
+      } else if (spec.choice.kind === 'embedded') {
+        fontBytes = pending.embedded?.bytes ?? null;
       }
       const hex = spec.colorHex.replace('#', '');
       const color: [number, number, number] = [
@@ -1489,6 +1531,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         bg: pending.bg,
         choice: spec.choice,
         fontBytes,
+        embeddedSpaceMapped: pending.embedded?.spaceMapped,
+        embeddedSpaceAdvanceEm: pending.embedded?.spaceAdvanceEm,
       });
       setPendingRunEdit(null);
       dirtyRef.current = true;
@@ -1949,11 +1993,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
               <select
                 className="fontselect"
                 value={
-                  fontChoice.kind === 'default'
-                    ? 'default'
+                  fontChoice.kind === 'system'
+                    ? `sys:${fontChoice.path}`
                     : fontChoice.kind === 'standard'
                       ? `std:${fontChoice.font}`
-                      : `sys:${fontChoice.path}`
+                      : 'default'
                 }
                 onChange={(e) => void changeFont(e.target.value)}
               >
@@ -2215,6 +2259,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           initialColorHex={pendingRunEdit.colorHex}
           detectedLabel={pendingRunEdit.detectedLabel}
           match={pendingRunEdit.match}
+          embeddedCovers={pendingRunEdit.embedded ? pendingRunEdit.embedded.covers : null}
           systemFonts={systemFonts}
           busy={lineEditBusy}
           onPreviewFont={previewFontFamily}

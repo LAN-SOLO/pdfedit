@@ -43,7 +43,10 @@ export type StdFontKey =
 export type FreetextFontChoice =
   | { kind: 'default' }
   | { kind: 'standard'; font: StdFontKey }
-  | { kind: 'system'; name: string; path: string };
+  | { kind: 'system'; name: string; path: string }
+  /** The PDF's own embedded font program (line-edit tool only) — the bytes
+   *  travel separately, next to the choice. */
+  | { kind: 'embedded' };
 
 /** One session-created FreeText annotation, as reported by pdf.js's
  *  annotationStorage right before saving. */
@@ -91,7 +94,7 @@ export async function embedChosenFont(
   sample: string
 ): Promise<PDFFont> {
   if (choice.kind === 'standard') return doc.embedFont(STANDARD[choice.font]);
-  if (choice.kind === 'system' && fontBytes) {
+  if ((choice.kind === 'system' || choice.kind === 'embedded') && fontBytes) {
     const subset = await subsetWorks(fontBytes, sample);
     return doc.embedFont(fontBytes, { subset });
   }

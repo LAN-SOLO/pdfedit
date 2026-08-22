@@ -35,6 +35,12 @@ export interface RunEdit {
   bg: [number, number, number];
   choice: FreetextFontChoice;
   fontBytes: Uint8Array | null;
+  /** Space handling for the embedded original font (see embeddedFont.ts):
+   *  pdf.js's sanitizer often drops U+0020 from the cmap, so encoding a
+   *  space would draw a .notdef box — words are then drawn as segments and
+   *  the pen advances by the font's true space advance instead. */
+  embeddedSpaceMapped?: boolean;
+  embeddedSpaceAdvanceEm?: number | null;
 }
 
 export async function applyRunEdit(bytes: Uint8Array, edit: RunEdit): Promise<Uint8Array> {
@@ -61,13 +67,29 @@ export async function applyRunEdit(bytes: Uint8Array, edit: RunEdit): Promise<Ui
     color: rgb(br, bgG, bb),
   });
 
+  // Embedded fonts whose sanitized cmap lost the space can't encode " " —
+  // split into word/whitespace tokens and advance the pen manually.
+  const manualSpaces =
+    edit.choice.kind === 'embedded' && !edit.embeddedSpaceMapped && /\s/.test(edit.newText);
+  const spaceW = (edit.embeddedSpaceAdvanceEm ?? 0.28) * edit.sizePt;
+  const tokens: { text: string | null; width: number }[] = [];
+  if (manualSpaces) {
+    for (const tok of edit.newText.split(/(\s+)/)) {
+      if (!tok) continue;
+      if (/^\s+$/.test(tok)) tokens.push({ text: null, width: [...tok].length * spaceW });
+      else tokens.push({ text: tok, width: font.widthOfTextAtSize(tok, edit.sizePt) });
+    }
+  } else {
+    tokens.push({ text: edit.newText, width: font.widthOfTextAtSize(edit.newText, edit.sizePt) });
+  }
+
   // When the replacement is wider than the original run, condense the
   // letter spacing (Tz) just enough to fit instead of running into the
   // neighboring run — down to 82%, beyond which condensed text looks
   // broken and a visible overflow is the lesser evil. Tz is part of the
   // persistent text state, so setting it before drawText applies inside
   // drawText's own BT/ET block (same trick the OCR layer uses).
-  const natural = font.widthOfTextAtSize(edit.newText, edit.sizePt);
+  const natural = tokens.reduce((sum, tk) => sum + tk.width, 0);
   let squeeze = 100;
   if (edit.width > 4 && natural > edit.width) {
     squeeze = Math.max(82, (edit.width / natural) * 100);
@@ -75,13 +97,19 @@ export async function applyRunEdit(bytes: Uint8Array, edit: RunEdit): Promise<Ui
   if (squeeze < 100) page.pushOperators(setCharacterSqueeze(squeeze));
 
   const [r, g, b] = edit.color.map((c) => c / 255);
-  page.drawText(edit.newText, {
-    x: edit.x,
-    y: edit.baseline,
-    size: edit.sizePt,
-    font,
-    color: rgb(r, g, b),
-  });
+  let penX = edit.x;
+  for (const tk of tokens) {
+    if (tk.text !== null) {
+      page.drawText(tk.text, {
+        x: penX,
+        y: edit.baseline,
+        size: edit.sizePt,
+        font,
+        color: rgb(r, g, b),
+      });
+    }
+    penX += tk.width * (squeeze / 100);
+  }
 
   if (squeeze < 100) page.pushOperators(setCharacterSqueeze(100));
 

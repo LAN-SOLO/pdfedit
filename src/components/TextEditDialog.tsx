@@ -22,6 +22,10 @@ interface Props {
   detectedLabel: string | null;
   /** Best available replacement, preselected. */
   match: FontMatch | null;
+  /** Coverage check of the PDF's own embedded font — non-null when that
+   *  font is reusable, which makes it the preselected, substitute-free
+   *  choice. */
+  embeddedCovers: ((text: string) => boolean) | null;
   systemFonts: SystemFont[] | null;
   busy: boolean;
   /** Loads a system font into document.fonts for the live preview and
@@ -61,6 +65,7 @@ const stdCss = (key: StdFontKey): { family: string; bold: boolean; italic: boole
 const choiceToKey = (choice: FreetextFontChoice): string => {
   if (choice.kind === 'standard') return `std:${choice.font}`;
   if (choice.kind === 'system') return `sys:${choice.path}`;
+  if (choice.kind === 'embedded') return 'emb';
   return 'std:helv';
 };
 
@@ -73,6 +78,7 @@ export default function TextEditDialog({
   initialColorHex,
   detectedLabel,
   match,
+  embeddedCovers,
   systemFonts,
   busy,
   onPreviewFont,
@@ -82,13 +88,16 @@ export default function TextEditDialog({
   const [text, setText] = useState(initialText);
   const [size, setSize] = useState(Math.round(initialSizePt * 100) / 100);
   const [color, setColor] = useState(initialColorHex || '#000000');
-  const [fontKey, setFontKey] = useState(match ? choiceToKey(match.choice) : 'std:helv');
+  const [fontKey, setFontKey] = useState(
+    embeddedCovers ? 'emb' : match ? choiceToKey(match.choice) : 'std:helv'
+  );
   const [preview, setPreview] = useState(() => {
-    if (match?.choice.kind === 'standard') return stdCss(match.choice.font);
+    if (!embeddedCovers && match?.choice.kind === 'standard') return stdCss(match.choice.font);
     return { family: 'Helvetica, Arial, sans-serif', bold: false, italic: false };
   });
 
   const keyToChoice = (key: string): FreetextFontChoice => {
+    if (key === 'emb') return { kind: 'embedded' };
     if (key.startsWith('std:')) return { kind: 'standard', font: key.slice(4) as StdFontKey };
     if (key.startsWith('sys:')) {
       const path = key.slice(4);
@@ -113,10 +122,17 @@ export default function TextEditDialog({
     }
   };
 
-  // system-font preview needs the FontFace loaded once for the initial match
+  // embedded/system-font preview needs its FontFace loaded once initially
   useState(() => {
-    if (match?.choice.kind === 'system') void changeFont(choiceToKey(match.choice));
+    if (embeddedCovers) void changeFont('emb');
+    else if (match?.choice.kind === 'system') void changeFont(choiceToKey(match.choice));
   });
+
+  const embSelected = fontKey === 'emb';
+  const embMissingChar =
+    embSelected && embeddedCovers
+      ? ([...text].find((ch) => !/\s/.test(ch) && !embeddedCovers(ch)) ?? null)
+      : null;
 
   return (
     <div className="overlay" onClick={busy ? undefined : onCancel}>
@@ -131,15 +147,21 @@ export default function TextEditDialog({
           {detectedLabel && (
             <p className="faint dialoghint">{t.textEditDetected(detectedLabel, initialSizePt)}</p>
           )}
-          {match && match.quality === 'exact' && (
+          {embSelected && !embMissingChar && (
+            <p className="ok-text dialoghint">{t.textEditMatchEmbedded}</p>
+          )}
+          {embMissingChar && (
+            <p className="err-text dialoghint">{t.textEditEmbeddedMissingGlyph(embMissingChar)}</p>
+          )}
+          {!embSelected && match && match.quality === 'exact' && (
             <p className="ok-text dialoghint">{t.textEditMatchExact(match.label)}</p>
           )}
-          {match && match.quality === 'family' && (
+          {!embSelected && match && match.quality === 'family' && (
             <p className="ok-text dialoghint">
               {t.textEditMatchFamily(match.label || t.stdFontLabel(fontKey.startsWith('std:') ? (fontKey.slice(4) as StdFontKey) : 'helv'))}
             </p>
           )}
-          {match && match.quality === 'fallback' && (
+          {!embSelected && match && match.quality === 'fallback' && (
             <p className="err-text dialoghint">
               {t.textEditMatchFallback(t.stdFontLabel(fontKey.startsWith('std:') ? (fontKey.slice(4) as StdFontKey) : 'helv'))}
             </p>
@@ -169,6 +191,7 @@ export default function TextEditDialog({
 
           <label className="fieldlabel">{t.propFont}</label>
           <select className="fontselect" value={fontKey} onChange={(e) => void changeFont(e.target.value)}>
+            {embeddedCovers && <option value="emb">{t.textEditFontEmbedded(detectedLabel)}</option>}
             <optgroup label={t.fontStandardGroup}>
               {STD_KEYS.map((k) => (
                 <option key={k} value={`std:${k}`}>
@@ -227,7 +250,7 @@ export default function TextEditDialog({
           </button>
           <button
             className="primary"
-            disabled={busy || text.trim().length === 0}
+            disabled={busy || text.trim().length === 0 || embMissingChar !== null}
             onClick={() => onApply({ newText: text, sizePt: size, colorHex: color, choice: keyToChoice(fontKey) })}
           >
             {busy ? t.textEditApplying : t.textEditApply}
