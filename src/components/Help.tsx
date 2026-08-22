@@ -96,7 +96,7 @@ const de: Content = {
       body: [
         '• Text ändern — Text anklicken: Tippfehler korrigieren, Formatierung (Schrift, Fett/Kursiv, Größe, Farbe) wird erkannt und erhalten',
         '• Seiten per Drag & Drop in der Seitenleiste umsortieren',
-        '• Schwärzen — jetzt wahlweise schwarz oder verpixelt',
+        '• Schwärzen — wahlweise schwarz übermalt, verpixelt oder weichgezeichnet',
         '• Wasserzeichen — unsichtbares PNG einbetten und prüfen: ausgetauschte Seiten fallen auf',
       ],
     },
@@ -144,6 +144,7 @@ const de: Content = {
       body: [
         '• Zoom — vergrößern/verkleinern per Knopf; „Seitenbreite“ füllt die Breite, „Ganze Seite“ zeigt die komplette Seite',
         '• Seitenleiste — Miniaturen aller Seiten zum schnellen Springen, ein-/ausblendbar',
+        '• Seitenzahl — das Nummernfeld in der Werkzeugleiste springt direkt zu einer Seite: Nummer eintippen, Enter',
         '• Suche — Volltextsuche im Dokument mit Vor/Zurück durch die Treffer',
       ],
     },
@@ -274,7 +275,7 @@ const de: Content = {
         'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt.',
         'Ablauf: Schwärzen aktivieren → Bereiche auf den Seiten markieren → „Anwenden“ → Sicherheitsabfrage bestätigen.',
         'Darstellung wählbar: schwarz übermalen, verpixeln (Mosaik) oder weichzeichnen (Blur). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
-        'Optional werden dabei auch die Metadaten des Dokuments bereinigt (Autor, Titel, Erstellungsprogramm …).',
+        'Optional werden dabei auch die Metadaten des Dokuments bereinigt: Autor, Titel, Thema, Stichwörter und Erstellungsprogramm.',
         'Achtung: Der Vorgang ist unwiderruflich. Formularfelder und Anmerkungen auf betroffenen Seiten werden mit entfernt. Im Zweifel vorher eine Kopie speichern.',
       ],
     },
@@ -398,7 +399,7 @@ const en: Content = {
       body: [
         '• Edit text — click text: fix typos while the formatting (font, bold/italic, size, color) is detected and preserved',
         '• Reorder pages by drag & drop in the sidebar',
-        '• Redact — now solid black or pixelated',
+        '• Redact — solid black, pixelated or blurred',
         '• Watermark — embed and verify an invisible PNG: swapped pages stand out',
       ],
     },
@@ -446,6 +447,7 @@ const en: Content = {
       body: [
         '• Zoom — in/out via buttons; “fit width” fills the width, “fit page” shows the whole page',
         '• Sidebar — thumbnails of all pages for quick jumps, toggleable',
+        '• Page number — the number field in the toolbar jumps straight to a page: type the number, press Enter',
         '• Search — full-text search with next/previous through the hits',
       ],
     },
@@ -576,7 +578,7 @@ const en: Content = {
         'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box.',
         'Flow: enable redaction → mark areas on the pages → “Apply” → confirm the safety prompt.',
         'Choose the style: solid black, pixelate (mosaic) or blur (soften). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
-        'Optionally the document’s metadata is cleaned as well (author, title, creating application …).',
+        'Optionally the document’s metadata is cleaned as well: author, title, subject, keywords and producing application.',
         'Caution: this cannot be undone. Form fields and annotations on affected pages are removed too. When in doubt, save a copy first.',
       ],
     },
