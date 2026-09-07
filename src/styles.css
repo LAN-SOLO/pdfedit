@@ -9,8 +9,54 @@
   --accent-deep: #0284c7;
   --error: #f87171;
   --ok: #4ade80;
+  --raised: #16233c;
+  --viewer-bg: #525659;
+  --page-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --overlay-bg: rgba(4, 8, 16, 0.65);
+  --accent-tint: rgba(56, 189, 248, 0.14);
+  --accent-tint-border: rgba(56, 189, 248, 0.4);
+  --accent-ring: rgba(56, 189, 248, 0.35);
   --mono: 'SF Mono', 'Cascadia Code', 'Fira Code', ui-monospace, monospace;
 }
+
+/* Hell-Modus — wird von main.tsx/App.tsx über <html data-theme> gesetzt.
+   Dunkel bleibt der Default und ändert sich hier nicht. Die Hilfe (.hlp-*)
+   nutzt Variablen mit Fallback (--bg-raised, --text-dim, --blue, …), die im
+   Dunkel-Modus absichtlich undefiniert bleiben — hier bekommen sie helle Werte. */
+html[data-theme='light'] {
+  --bg: #eef2f8;
+  --panel: #ffffff;
+  --border: #c3cfe0;
+  --text: #16233a;
+  --faint: #46586f;
+  --accent: #0284c7;
+  --accent-deep: #0369a1;
+  --error: #dc2626;
+  --ok: #15803d;
+  --raised: #e4eaf3;
+  --viewer-bg: #cfd8e3;
+  --page-shadow: 0 4px 18px rgba(22, 35, 58, 0.22);
+  --overlay-bg: rgba(22, 35, 58, 0.45);
+  --accent-tint: rgba(2, 132, 199, 0.12);
+  --accent-tint-border: rgba(2, 132, 199, 0.45);
+  --accent-ring: rgba(2, 132, 199, 0.3);
+  /* Aliase für Hilfe, Update-Banner und Eigenschaften-Leiste */
+  --bg-panel: #ffffff;
+  --bg-raised: #e4eaf3;
+  --bg-hover: #d8e2ef;
+  --text-dim: #46586f;
+  --text-faint: #7a8ca3;
+  --fg-dim: #46586f;
+  --blue: #0284c7;
+  --blue-dim: #0369a1;
+}
+html[data-theme='light'] button.primary:hover:not(:disabled) { background: #075985; }
+html[data-theme='light'] button.danger:hover:not(:disabled) { background: #b91c1c; }
+html[data-theme='light'] .sidebar-thumb-placeholder { background: #d8e2ef; }
+html[data-theme='light'] .hlp-overlay { background: rgba(22, 35, 58, 0.45); }
+html[data-theme='light'] .hlp-modal { box-shadow: 0 18px 60px rgba(22, 35, 58, 0.25); }
+html[data-theme='light'] .hlp-tut-nav .hlp-primary { color: #ffffff; }
+html[data-theme='light'] .upd-banner { box-shadow: 0 10px 30px rgba(22, 35, 58, 0.2); }
 
 * {
   box-sizing: border-box;
@@ -93,7 +139,7 @@ button {
   font: inherit;
   font-family: var(--mono);
   color: var(--text);
-  background: #16233c;
+  background: var(--raised);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 9px 16px;
@@ -166,14 +212,14 @@ button.ghost.small:hover:not(:disabled) {
 }
 
 .iconbtn:hover:not(:disabled) {
-  background: #16233c;
+  background: var(--raised);
   color: var(--text);
   border-color: transparent;
 }
 
 .iconbtn.active {
-  background: rgba(56, 189, 248, 0.14);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--accent-tint);
+  border-color: var(--accent-tint-border);
   color: var(--accent);
 }
 
@@ -223,7 +269,7 @@ button.ghost.small:hover:not(:disabled) {
      100001 — any of our modals must clear that or its buttons visually
      float on top of (and intercept clicks/drags meant for) our dialog. */
   z-index: 100010;
-  background: rgba(4, 8, 16, 0.65);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -379,7 +425,7 @@ button.big {
 }
 
 .segmented button:hover:not(:disabled) {
-  background: #16233c;
+  background: var(--raised);
   color: var(--text);
 }
 
@@ -538,7 +584,7 @@ button.big {
   flex: 1;
   min-height: 0;
   position: relative;
-  background: #525659;
+  background: var(--viewer-bg);
 }
 
 .pdfjs-container {
@@ -550,7 +596,7 @@ button.big {
 .pdfjs-container .pdfViewer .page {
   border-image: none;
   margin: 16px auto;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--page-shadow);
 }
 
 .loading {
@@ -829,6 +875,13 @@ button.big {
   padding: 0;
 }
 .hlp-fab:hover { color: var(--blue, #38bdf8); border-color: var(--blue-dim, #0ea5e9); }
+/* Hell/Dunkel-Umschalter (App.tsx) — gleiche Optik wie der Hilfe-Knopf, links daneben */
+.hlp-fab.theme-fab {
+  right: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
 .hlp-overlay {
   position: fixed;
   inset: 0;
@@ -1029,7 +1082,7 @@ button.big {
 
 .swatch.active {
   border-color: var(--blue, #38bdf8);
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 0 2px var(--accent-ring);
 }
 
 /* new-feature dialogs (form field, sign, protect, password prompt) */
@@ -1121,7 +1174,7 @@ button.big {
   font-family: var(--mono);
   font-size: 12px;
   color: var(--text);
-  background: #16233c;
+  background: var(--raised);
   border: 1px solid var(--border);
   border-radius: 6px;
 }
@@ -1211,7 +1264,7 @@ button.big {
 
 .sidebar-tab.active {
   color: var(--blue, #38bdf8);
-  background: #16233c;
+  background: var(--raised);
 }
 
 .objects-list {
@@ -1256,7 +1309,7 @@ button.big {
 }
 
 .object-label:hover {
-  background: #16233c;
+  background: var(--raised);
   border-color: var(--border);
 }
 

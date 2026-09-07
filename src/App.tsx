@@ -5,6 +5,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api, isTauri, UpdateInfo } from './api';
 import { bytesToBase64, downloadBytes } from './bytes';
 import { t } from './i18n';
+import { applyTheme, loadTheme, type Theme } from './theme';
+import { IconMoon, IconSun } from './components/Icon';
 import UpdateModal from './components/UpdateModal';
 import Help from './components/Help';
 import NewPdfModal, { CreatedPdf } from './components/NewPdfModal';
@@ -44,6 +46,7 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [theme, setTheme] = useState<Theme>(loadTheme);
   const [toastMsg, setToastMsg] = useState<{ msg: string; err: boolean } | null>(null);
   const [docs, setDocs] = useState<OpenDoc[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -314,6 +317,12 @@ export default function App() {
     setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes } : x)));
   }, []);
 
+  const toggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    setTheme(next);
+  };
+
   const doCheckUpdate = async () => {
     setChecking(true);
     try {
@@ -475,6 +484,16 @@ export default function App() {
         />
       )}
 
+      {/* Hell/Dunkel — sitzt fest neben dem Hilfe-Knopf, damit er in jedem
+          Zustand (Startseite wie Viewer) an derselben Stelle erreichbar ist. */}
+      <button
+        className="hlp-fab theme-fab"
+        title={theme === 'dark' ? t.themeToggleLight : t.themeToggleDark}
+        aria-label={theme === 'dark' ? t.themeToggleLight : t.themeToggleDark}
+        onClick={toggleTheme}
+      >
+        {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
+      </button>
       <Help
         version={version}
         updateState={update === 'unchecked' ? 'unknown' : update === null ? 'none' : 'available'}

@@ -245,6 +245,9 @@ const de = {
   pwPromptOpen: 'Öffnen',
   pwPromptPlaceholder: 'Passwort',
   helpVersion: (v: string) => `pdfedit v${v}`,
+  // theme (dark/light)
+  themeToggleLight: 'Zum Hell-Modus wechseln',
+  themeToggleDark: 'Zum Dunkel-Modus wechseln',
   // redact style
   redactStyleLabel: 'Darstellung',
   redactStyleBlack: 'Schwarz übermalen',
@@ -588,6 +591,9 @@ const en: typeof de = {
   pwPromptOpen: 'Open',
   pwPromptPlaceholder: 'Password',
   helpVersion: (v: string) => `pdfedit v${v}`,
+  // theme (dark/light)
+  themeToggleLight: 'Switch to light mode',
+  themeToggleDark: 'Switch to dark mode',
   // redact style
   redactStyleLabel: 'Style',
   redactStyleBlack: 'Solid black',

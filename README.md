@@ -27,7 +27,8 @@ Kontrollkästchen, Auswahlliste), **digitale Signatur per Zertifikat**
 (PKCS#12 → adbe.pkcs7.detached), **Passwortschutz** (AES-256 setzen/ändern/
 entfernen, Berechtigungen; geschützte PDFs öffnen), Seiten organisieren,
 Komprimieren, echtes Schwärzen, OCR, Bereich bearbeiten, In-App-Hilfe mit
-Tutorial & Handbuch.
+Tutorial & Handbuch, Hell-/Dunkel-Modus (Umschalter neben der Hilfe, im
+localStorage gemerkt).
 
 ## Entwicklung
 

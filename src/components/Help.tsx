@@ -146,6 +146,7 @@ const de: Content = {
         '• Seitenleiste — Miniaturen aller Seiten zum schnellen Springen, ein-/ausblendbar',
         '• Seitenzahl — das Nummernfeld in der Werkzeugleiste springt direkt zu einer Seite: Nummer eintippen, Enter',
         '• Suche — Volltextsuche im Dokument mit Vor/Zurück durch die Treffer',
+        '• Hell/Dunkel — der Knopf mit Sonne bzw. Mond unten rechts neben der Hilfe schaltet die Oberfläche um; die Wahl bleibt gespeichert. Die PDF-Seiten selbst bleiben unverändert',
       ],
     },
     {
@@ -449,6 +450,7 @@ const en: Content = {
         '• Sidebar — thumbnails of all pages for quick jumps, toggleable',
         '• Page number — the number field in the toolbar jumps straight to a page: type the number, press Enter',
         '• Search — full-text search with next/previous through the hits',
+        '• Light/dark — the sun or moon button at the bottom right next to Help switches the interface; the choice is remembered. The PDF pages themselves stay unchanged',
       ],
     },
     {
