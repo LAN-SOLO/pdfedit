@@ -690,4 +690,5 @@ const en: typeof de = {
   },
 };
 
+export const dicts = { de, en } as const;
 export const t = navigator.language.toLowerCase().startsWith('de') ? de : en;

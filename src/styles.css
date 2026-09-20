@@ -206,6 +206,7 @@ button.ghost.small:hover:not(:disabled) {
   padding: 6px 10px;
   font-size: 12.5px;
   line-height: 1;
+  white-space: nowrap;
   color: var(--faint);
   background: transparent;
   border: 1px solid transparent;
@@ -436,12 +437,12 @@ button.big {
 
 .edittoolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   background: var(--bg);
-  overflow-x: auto;
 }
 
 .toolgroup {
@@ -646,6 +647,17 @@ button.big {
   gap: 8px;
   padding: 8px 10px 0;
   background: var(--bg);
+}
+
+/* wordmark at the left of the tab bar — same brand/dot colors as the h1 */
+.tabbrand {
+  font-family: var(--mono);
+  font-size: 17px;
+  font-weight: 600;
+  padding: 0 8px 6px 4px;
+  flex-shrink: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .shell:not(.wide) .tabbar {
@@ -1108,9 +1120,11 @@ button.big {
   font-size: 13px;
 }
 
-/* the toolbar gained three tools — never let it clip on narrow windows */
-.edittoolbar {
-  overflow-x: auto;
+/* the toolbar keeps growing — on narrow windows it wraps into a second
+   row instead of hiding tools behind a horizontal scrollbar */
+.edittoolbar .tooldivider {
+  height: 22px;
+  align-self: center;
 }
 
 .tabaction.update {
@@ -1339,3 +1353,26 @@ button.big {
 .object-del {
   flex: none;
 }
+
+/* help language toggle (DE/EN) in the modal header — independent of the app language */
+.hlp-lang {
+  display: inline-flex;
+  border: 1px solid var(--border, #223252);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-right: 6px;
+}
+.hlp-lang-btn {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--text-faint, #5c6f8c);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.hlp-lang-btn + .hlp-lang-btn { border-left: 1px solid var(--border, #223252); }
+.hlp-lang-btn:hover { color: var(--text, #e2e8f0); }
+.hlp-lang-btn.active { color: var(--blue, #38bdf8); background: var(--bg-raised, rgba(56, 189, 248, 0.08)); }

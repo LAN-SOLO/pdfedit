@@ -353,6 +353,10 @@ export default function App() {
     >
       {docs.length > 0 && (
         <div className="tabbar">
+          <span className="tabbrand">
+            <span className="brand">pdfedit</span>
+            <span className="dot">.</span>
+          </span>
           <div className="tabs">
             {docs.map((d) => (
               <div
