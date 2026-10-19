@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from './pdfjsConfig';
 import {
   PDFDocument as PdfLibDocument,
   StandardFonts,
@@ -41,7 +42,8 @@ export const ocrPdf = async (
 ): Promise<{ bytes: Uint8Array; pagesOcred: number; wordsFound: number }> => {
   const pdfDoc = await PdfLibDocument.load(bytes);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const pdfjsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  const pdfjsTask = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: bytes.slice() });
+  const pdfjsDoc = await pdfjsTask.promise;
 
   const worker = await createWorker(langs, undefined, {
     workerPath: '/tessdata/worker.min.js',
@@ -106,6 +108,7 @@ export const ocrPdf = async (
     }
   } finally {
     await worker.terminate();
+    await pdfjsTask.destroy();
   }
 
   const outBytes = await pdfDoc.save();

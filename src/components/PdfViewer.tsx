@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from '../pdfjsConfig';
 import {
   EventBus,
   PDFLinkService,
@@ -78,8 +79,9 @@ import {
 } from './Icon';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl;
+// dev aid only — production builds don't expose pdf.js internals globally
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-(window as any).__debugPdfjs = pdfjsLib;
+if (import.meta.env.DEV) (window as any).__debugPdfjs = pdfjsLib;
 
 const { AnnotationEditorType, AnnotationMode, AnnotationEditorParamsType } = pdfjsLib;
 
@@ -420,7 +422,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     });
     pdfViewerRef.current = pdfViewer;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (window as any).__debugViewer = pdfViewer; // dev aid, same convention as __debugPdfjs
+    if (import.meta.env.DEV) (window as any).__debugViewer = pdfViewer; // dev aid, like __debugPdfjs
     linkService.setViewer(pdfViewer);
 
     const onPagesInit = () => {
@@ -475,7 +477,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
 
     // fontExtraProperties keeps the sanitized font programs on commonObjs —
     // the line-edit tool re-embeds them so edits keep the exact typeface
-    const loadingTask = pdfjsLib.getDocument({ data: data.slice(), fontExtraProperties: true });
+    const loadingTask = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: data.slice(), fontExtraProperties: true });
     loadingTask.promise
       .then((pdfDocument) => {
         if (destroyed) {

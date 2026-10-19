@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from '../pdfjsConfig';
 import { PDFDocument, degrees } from 'pdf-lib';
 import { api, isTauri } from '../api';
 import { bytesToBase64, downloadBytes } from '../bytes';
@@ -40,7 +41,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
 
   // load the currently-open document as source 0
   useEffect(() => {
-    const pdfjsDoc = pdfjsLib.getDocument({ data: data.slice() }).promise;
+    const pdfjsDoc = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: data.slice() }).promise;
     setSources([{ bytes: data, pdfjsDoc }]);
     pdfjsDoc
       .then((doc) => {
@@ -143,7 +144,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
   const appendSourceBytes = useCallback(
     (bytes: Uint8Array) => {
       const sourceIndex = nextSourceIndex.current++;
-      const pdfjsDoc = pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+      const pdfjsDoc = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: bytes.slice() }).promise;
       setSources((prev) => [...prev, { bytes, pdfjsDoc }]);
       pdfjsDoc
         .then((doc) => {

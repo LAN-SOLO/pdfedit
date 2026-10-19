@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from '../pdfjsConfig';
 import { t } from '../i18n';
 import { IconPages } from './Icon';
 import type { FieldSummary } from '../formFields';
@@ -59,7 +60,7 @@ export default function Sidebar({
     setPageCount(0);
 
     (async () => {
-      const doc = await pdfjsLib.getDocument({ data: data.slice() }).promise;
+      const doc = await pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: data.slice() }).promise;
       if (cancelled) return;
       setPageCount(doc.numPages);
       for (let i = 1; i <= doc.numPages; i++) {
