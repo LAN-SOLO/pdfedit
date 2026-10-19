@@ -4,7 +4,7 @@
 // translated backend errors, PDF links, update dialog, pages dialog.
 //
 //   pnpm exec vite --port 1437 --strictPort &
-//   node scripts/ui-flows.mjs <chrome-binary> http://127.0.0.1:1437 <screenshot-dir>
+//   node scripts/ui-flows.mjs <chrome-binary> http://localhost:1437 <screenshot-dir>
 // The mock mirrors tauri-plugin-dialog 2.7: window.confirm/alert/prompt are
 // async stubs calling an unregistered command (so any use of them breaks).
 import { spawn } from 'node:child_process';
@@ -98,7 +98,10 @@ const mockScript = (lang) => `
         case 'plugin:window|destroy': cfg.destroyed = true; return null;
         case 'check_update': return cfg.update;
         case 'pick_save_pdf': return cfg.savePath;
-        case 'write_pdf': cfg.written = args; return null;
+        case 'write_pdf':
+          if (cfg.writeDelay) await new Promise((r) => setTimeout(r, cfg.writeDelay));
+          if (cfg.writeError) throw cfg.writeError;
+          cfg.written = args; return null;
         case 'list_system_fonts': return [];
         case 'install_update': throw 'update.install: signature mismatch';
       }
@@ -229,6 +232,18 @@ async function run(lang, theme) {
   await ev(`__mock.confirmAnswer = true; __mock.emit('tauri://close-requested', null); await __h.sleep(500);`);
   check(`${tag} window close OK destroys`, await ev(`return __mock.destroyed`));
   await ev(`__mock.destroyed = false; __mock.confirmAnswer = false;`);
+
+  // 7b. a failed save keeps the tab unsaved (closing still asks); a slow
+  // save blocks a second one until it is on disk, then the tab is clean
+  const sv1 = await ev(`${L} await __h.until(() => !__h.btn(t.save)?.disabled, 5000); __mock.writeError = 'io.locked: Der Prozess kann nicht zugreifen'; __h.click(t.save);
+    await __h.until(() => __h.toast().includes(t.errors['io.locked']), 6000); await __h.sleep(300); __mock.writeError = null;
+    return { toast: __h.toast(), dirty: !!document.querySelector('.dirtydot') }`);
+  check(`${tag} failed save keeps tab dirty`, sv1.dirty && sv1.toast.includes(lang === 'de' ? 'anderen Programm' : 'another program'), JSON.stringify(sv1));
+  const sv2 = await ev(`${L} await __h.until(() => !document.querySelector('.toast'), 6000); __mock.calls = []; __mock.writeDelay = 1500; __h.click(t.save); await __h.until(() => __mock.calls.some(c => c.cmd === 'write_pdf'), 6000); await __h.sleep(150);
+    const midDisabled = !!document.querySelector('button.primary.iconbtn')?.disabled; document.querySelector('button.primary.iconbtn')?.click();
+    await __h.until(() => __h.toast() === t.saved, 8000); __mock.writeDelay = 0; await __h.sleep(500);
+    return { midDisabled, writes: __mock.calls.filter(c => c.cmd === 'write_pdf').length, dirty: !!document.querySelector('.dirtydot') }`);
+  check(`${tag} slow save: no second write, tab clean afterwards`, sv2.midDisabled && sv2.writes === 1 && !sv2.dirty, JSON.stringify(sv2));
 
   // 8. pages dialog: translated buttons, layout, export notice
   await ev(`${L} __h.click(t.pagesButton); await __h.until(() => document.querySelector('.pagesmodal .pagecard-actions'), 8000); await __h.sleep(600);`);

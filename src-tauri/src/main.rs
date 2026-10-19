@@ -670,8 +670,51 @@ fn nav_guard<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
         .build()
 }
 
+/// macOS: the default menu's "Quit" (⌘Q) calls `NSApp terminate:` right
+/// away — the window never sees CloseRequested, so the frontend's questions
+/// (unsaved changes, a save or long task still running) were skipped and
+/// edits were lost without a word. The menu keeps everything else but gets
+/// a Quit item with the same shortcut that closes the window the way its
+/// red button does, which runs those questions first.
+#[cfg(target_os = "macos")]
+const QUIT_MENU_ID: &str = "pdfedit-quit";
+
+#[cfg(target_os = "macos")]
+fn app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri::menu::Menu<R>> {
+    use tauri::menu::{Menu, MenuItem, MenuItemKind};
+    let menu = Menu::default(app)?;
+    if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
+        let items = app_menu.items()?;
+        let quit = items.iter().rposition(|i| match i {
+            MenuItemKind::Predefined(p) => p.text().map(|t| t.contains("Quit")).unwrap_or(false),
+            _ => false,
+        });
+        if let Some(pos) = quit {
+            app_menu.remove_at(pos)?;
+            let label = format!("Quit {}", app.package_info().name);
+            let item = MenuItem::with_id(app, QUIT_MENU_ID, label, true, Some("CmdOrCtrl+Q"))?;
+            app_menu.insert(&item, pos)?;
+        }
+    }
+    Ok(menu)
+}
+
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(app_menu).on_menu_event(|app, event| {
+        if event.id() == QUIT_MENU_ID {
+            // close() emits CloseRequested like the window's close button;
+            // the frontend asks and then destroys the window (→ app exits)
+            match app.get_webview_window("main") {
+                Some(w) => {
+                    let _ = w.close();
+                }
+                None => app.exit(0),
+            }
+        }
+    });
+    builder
         .plugin(nav_guard())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

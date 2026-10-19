@@ -257,7 +257,9 @@ interface PdfViewerProps {
    *  sidestepping the async race between updating the doc's protection
    *  state and reading it back in the save path. `undefined` keeps the
    *  doc's stored protection. */
-  onSave: (bytes: Uint8Array, protectionOverride?: Protection | null) => void;
+  /** Writes to disk; resolves to false when that failed (the parent then
+   *  marks the tab unsaved again). */
+  onSave: (bytes: Uint8Array, protectionOverride?: Protection | null) => Promise<boolean>;
   /** Replace the working document in place (e.g. after reordering/rotating/
    *  merging pages in the Pages panel) — an in-memory change, same as a
    *  drawn stroke: it marks the tab dirty but does not touch disk. */
@@ -312,6 +314,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const pdfViewerRef = useRef<InstanceType<typeof PdfJsViewer> | null>(null);
   const eventBusRef = useRef<EventBus | null>(null);
   const dirtyRef = useRef(false);
+  // true while doSave waits for the file to be written
+  const writingRef = useRef(false);
 
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
@@ -850,7 +854,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       // Commit BEFORE checking dirty: a just-drawn, not-yet-committed stroke
       // can still be the only reason this doc is dirty at all.
       await commitPendingEdits();
-      if (!dirtyRef.current) return null;
+      // a save still writing may yet fail — keep the edits in memory too
+      if (!dirtyRef.current && !writingRef.current) return null;
       return await saveWithFonts();
     } catch (err) {
       // best-effort — losing the in-memory checkpoint beats crashing the tab
@@ -970,7 +975,14 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       const bytes = await saveWithFonts();
       dirtyRef.current = false;
       onDirtyChange(false);
-      onSave(bytes);
+      // stay "saving" until the file is on disk: no second save can start
+      // meanwhile, and a failed write makes the document unsaved again
+      writingRef.current = true;
+      try {
+        if (!(await onSave(bytes))) dirtyRef.current = true;
+      } finally {
+        writingRef.current = false;
+      }
     } catch (err) {
       onError(`${t.saveError}: ${errText(err)}`);
     } finally {
@@ -1149,8 +1161,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       dirtyRef.current = false;
       onDirtyChange(false);
       onReplace(signed);
-      onSave(signed);
-      onNotice(t.signDone);
+      if (await onSave(signed)) onNotice(t.signDone);
+      else dirtyRef.current = true;
     } catch (err) {
       onError(`${t.signError}: ${errText(err)}`);
     } finally {
@@ -1182,9 +1194,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       await commitPendingEdits();
       const bytes = await saveWithFonts();
       onProtectionChange(next);
-      onSave(bytes, next);
+      const ok = await onSave(bytes, next);
       setShowProtect(false);
-      onNotice(t.protectApplied);
+      if (ok) onNotice(t.protectApplied);
+      else dirtyRef.current = true;
     } catch (err) {
       onError(`${t.protectError}: ${errText(err)}`);
     } finally {
@@ -1200,9 +1213,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       await commitPendingEdits();
       const bytes = await saveWithFonts();
       onProtectionChange(null);
-      onSave(bytes, null);
+      const ok = await onSave(bytes, null);
       setShowProtect(false);
-      onNotice(t.protectRemoved);
+      if (ok) onNotice(t.protectRemoved);
+      else dirtyRef.current = true;
     } catch (err) {
       onError(`${t.protectError}: ${errText(err)}`);
     } finally {

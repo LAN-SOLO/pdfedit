@@ -42,7 +42,7 @@ pnpm test              # Kern-Tests Frontend (pdf-lib-Logik, Signatur, Schwärze
 pnpm exec vite --port 1437 --strictPort &
 CHROME=/pfad/zu/chrome node scripts/e2e-browser.mjs
 # UI-Abläufe mit gemockter Tauri-IPC (DE/EN, Hell/Dunkel, 860×560):
-node scripts/ui-flows.mjs /pfad/zu/chrome http://127.0.0.1:1437 /tmp/pdfedit-shots
+node scripts/ui-flows.mjs /pfad/zu/chrome http://localhost:1437 /tmp/pdfedit-shots
 ```
 
 Fehler aus Rust kommen als stabile Codes (`io.locked`, `pdf.write_denied` …)
@@ -50,3 +50,7 @@ Fehler aus Rust kommen als stabile Codes (`io.locked`, `pdf.write_denied` …)
 immer in `i18n.ts` (DE und EN) ergänzen, `tests/i18n.test.ts` prüft das.
 `read_pdf`/`write_pdf` arbeiten nur mit Pfaden aus Dialog, Drag & Drop oder
 Speichern; die Webview darf nicht aus der App-URL wegnavigieren.
+Speichern läuft pro Dokument nacheinander (`saveDoc` in `src/App.tsx`); ein
+fehlgeschlagener Schreibvorgang markiert den Tab wieder als ungespeichert.
+Unter macOS ersetzt `app_menu` (main.rs) das „Quit“ des Standardmenüs, damit
+⌘Q dieselben Rückfragen auslöst wie das Schließen des Fensters.

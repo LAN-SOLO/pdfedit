@@ -381,3 +381,107 @@ Muster L1–L13 aus den anderen Apps gegen pdfedit geprüft und behoben.
 - Objekte-Panel: Formularfeld × → native Rückfrage, Abbrechen behält das Feld.
 - Update-Dialog zeigt „Veröffentlicht am …“ mit Datum.
 
+
+## 10. Runde 2 – Verifikation (unabhängige Prüfung, 2026-10-20)
+
+Geprüft: `f487365..b3d8c11` (Runde 2) auf Regressionen, Plattform- und
+Race-Probleme; alle Tests selbst wiederholt, L1–L13 an weiteren Stellen
+stichprobenartig nachgeprüft.
+
+**Wiederholte Testläufe**
+
+| Befehl | Ergebnis |
+|---|---|
+| `cargo test --workspace` | 16 bestanden |
+| `cargo check --target x86_64-pc-windows-msvc --workspace --tests` (vom Mac, ohne Linken) | fehlerfrei, keine Warnungen (auch nach den Änderungen unten) |
+| `cargo clippy --all-targets` (macOS) | nur der alte Stil-Hinweis `chunks_exact` |
+| `pnpm test` | 20 bestanden; `i18n`-Tests zusätzlich unter `TZ` = Kiritimati (+14), Los Angeles, Berlin, UTC |
+| `pnpm build` | fehlerfrei |
+| `scripts/e2e-browser.mjs` | 6 bestanden |
+| `scripts/ui-flows.mjs` | 100 bestanden (92 + 8 neue), 0 Seitenfehler |
+| `cargo audit` / `pnpm audit` | wie in Abschnitt 9 (nur `zip` 4.6.1 über den Updater, `node-forge`) |
+
+**Bestätigt (Quelltext gelesen bzw. ausgeführt)**
+
+- Drop-Registrierung: In Tauri 2.11.5 (`manager/window.rs`) wird das
+  Drop-Event erst an die Webview gesendet und danach im selben Aufruf die
+  globalen `on_window_event`-Handler ausgeführt — auf dem Hauptthread, über
+  den auch die IPC-Anfrage der Webview laufen muss. `read_pdf` kann die
+  Freigabe also nicht überholen.
+- Neue Fenster (`target="_blank"`, Kontextmenü „In neuem Fenster öffnen“):
+  ohne eigenen Handler lehnt wry sie unter WebView2 ab (`SetHandled(true)`),
+  unter WKWebView liefert wrys UI-Delegate ohne Handler keine neue Webview (`None`). Der Navigations-Wächter
+  deckt „Link öffnen“ im Kontextmenü ab.
+- Link-Abfangen in WKWebView: Mit einem kleinen WKWebView-Programm und
+  eigenem `tauri://`-Scheme geprüft, dass `location.origin` und
+  `new URL(…).origin` dort beide `tauri://localhost` sind — leere `href`s,
+  die pdf.js für Named/JS-Aktionen setzt, bleiben damit intern.
+- macOS-Menü: Die Ersetzung (siehe unten) im Debug-Build ausgeführt; das
+  App-Menü enthält danach „Quit pdfedit“ mit eigener ID statt des
+  vordefinierten Eintrags.
+
+**Behoben**
+
+- **L11/L9 Fehlgeschlagenes Speichern machte den Tab „sauber“**: `doSave`
+  löschte die Ungespeichert-Markierung vor dem Schreiben, `saveDoc`
+  stellte sie bei einem Fehler nicht wieder her. Nach z. B. `io.locked`
+  (Datei in Acrobat offen — genau der in Runde 2 eingebaute Fall) fragte
+  das Schließen von Tab oder App nicht mehr nach; beim Tabwechsel gingen die
+  Änderungen ebenfalls verloren (Checkpoint sah „nichts ungespeichert“).
+  Jetzt: Fehler → Tab wieder ungespeichert, auch im Viewer.
+- **L9 Zweites Speichern während des Schreibens**: „Speichern“ war wieder
+  aktiv, sobald die Bytes erzeugt waren, nicht erst wenn sie auf der Platte
+  lagen. Mit dem 2-s-Retry unter Windows konnten zwei Schreibvorgänge
+  parallel laufen und ein älterer zuletzt landen. Jetzt bleibt der Knopf bis
+  zum Ende gesperrt, und Schreibvorgänge eines Dokuments laufen strikt
+  nacheinander (Kette in `saveDoc`). Wird während des Schreibens weiter
+  bearbeitet, bleibt der Tab ungespeichert und der Viewer wird nicht mit
+  dem älteren Stand neu geladen (vorher: neuere Änderungen verworfen).
+  Signieren und Schutz melden „erledigt“ nur noch, wenn die Datei
+  tatsächlich geschrieben wurde.
+- **L9/L11 ⌘Q unter macOS umging alle Rückfragen**: Das vordefinierte
+  „Quit“ des Tauri-Standardmenüs ruft `NSApp terminate:` direkt auf (muda
+  0.19.3, tao 0.35.3 implementiert kein `applicationShouldTerminate`) — das
+  Fenster bekam kein CloseRequested, ungespeicherte Änderungen und laufende
+  Aufgaben gingen ohne Frage verloren. `app_menu` ersetzt den Eintrag durch
+  einen eigenen mit ⌘Q, der das Fenster wie der rote Knopf schließt
+  (`Window::close` → CloseRequested → Rückfragen). Nur macOS; Windows hat
+  kein Standardmenü.
+- Doku: README/Skript-Kopf nutzten `http://127.0.0.1:1437`; Vite lauscht
+  standardmäßig auf `localhost` (auf diesem Mac nur `::1`) → `localhost`.
+
+**Neue Prüfungen** (`scripts/ui-flows.mjs`, je DE/EN × Dunkel/Hell)
+
+- Speichern mit `io.locked`-Fehler → übersetzte Meldung, Tab bleibt
+  ungespeichert (schlug auf `b3d8c11` fehl).
+- Langsames Speichern (1,5 s): Knopf während des Schreibens gesperrt, genau
+  ein `write_pdf`, danach sauber (schlug auf `b3d8c11` fehl: zwei Writes).
+
+**Weiter offen / bewusst nicht geändert**
+
+- Beenden über das Dock („Beenden“), Abmelden oder ein Apple-Event `quit`
+  ruft weiterhin `terminate:` direkt auf — ohne Rückfrage. Abfangen ginge nur
+  über einen eigenen `applicationShouldTerminate`-Delegate (objc), nicht
+  sinnvoll vor 1.0.
+- Der neue Menüeintrag heißt wie die übrigen Standard-Menüpunkte englisch
+  („Quit pdfedit“); das Tauri-Standardmenü ist insgesamt nicht übersetzt.
+- „Auswahl exportieren“ im Seiten-Dialog zählt nicht zur Beenden-Rückfrage
+  „pdfedit arbeitet noch“; das Schreiben ist atomar, ein Abbruch hinterlässt
+  höchstens eine Temp-Datei neben dem Ziel.
+- Datum im Update-Dialog nutzt das System-Locale (`toLocaleDateString()`),
+  nicht zwingend die UI-Sprache (z. B. französisches System → englische UI
+  mit französischem Datumsformat). Kosmetisch.
+- `cargo fmt --check` meldet Abweichungen (schon vor Runde 2); die CI prüft
+  das nicht.
+
+**Nur auf echter Hardware prüfbar (zusätzlich zu Abschnitt 7 und 9)**
+
+- macOS: Dokument ändern, ⌘Q → Rückfrage „ungespeicherte Änderungen“;
+  Abbrechen lässt die App offen; während OCR → „Trotzdem beenden“.
+  Ohne Änderungen beendet ⌘Q die App sofort.
+- Windows: Datei in Acrobat sperren, speichern → Fehlermeldung nach ~2 s,
+  Tab-Punkt bleibt, Schließen fragt nach; Acrobat schließen, erneut
+  speichern → sauber.
+- Großes PDF auf langsamem Laufwerk/Netzlaufwerk speichern: „Speichern“
+  bleibt bis zum Ende gesperrt, Weiterarbeiten währenddessen lässt den Tab
+  ungespeichert.

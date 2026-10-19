@@ -320,8 +320,9 @@ const de: Content = {
         'Tabs mit ungespeicherten Änderungen sind markiert; beim Schließen eines Tabs oder der App fragt pdfedit nach.',
         'Gespeichert wird absturzsicher: erst in eine temporäre Datei, dann wird das Original ersetzt — ein Absturz oder voller Datenträger hinterlässt kein halbes PDF. pdfedit liest nur Dateien, die du in dieser Sitzung geöffnet hast (Dialog oder Drag & Drop), und schreibt nur in solche oder in die im Speichern-Dialog gewählte.',
         'Hält ein Virenscanner oder OneDrive die Datei unter Windows gerade fest, versucht pdfedit es rund zwei Sekunden lang erneut. Ist sie in einem anderen Programm geöffnet (z. B. Acrobat), meldet pdfedit das klar — das Original bleibt unverändert.',
+        'Schlägt das Speichern fehl (z. B. weil die Datei gesperrt ist), bleibt der Tab als ungespeichert markiert und Schließen fragt weiterhin nach. Solange eine Datei geschrieben wird, ist „Speichern“ gesperrt; bearbeitest du währenddessen weiter, bleibt der Tab ungespeichert.',
         'Tippst du im Speichern-Dialog einen Namen ohne „.pdf“, hängt pdfedit die Endung an und fragt nach, falls es diese Datei schon gibt.',
-        'Läuft beim Beenden noch ein Speichervorgang oder eine längere Aufgabe (OCR, Komprimieren, Schwärzen …), fragt pdfedit vorher, statt sie abzubrechen.',
+        'Läuft beim Beenden (auch mit ⌘Q unter macOS) noch ein Speichervorgang oder eine längere Aufgabe (OCR, Komprimieren, Schwärzen …), fragt pdfedit vorher, statt sie abzubrechen.',
       ],
     },
     {
@@ -632,8 +633,9 @@ const en: Content = {
         'Tabs with unsaved changes are marked; pdfedit asks before closing a tab or the app.',
         'Saving is crash-safe: first to a temporary file, then the original is replaced — a crash or full disk never leaves a half-written PDF. pdfedit only reads files you opened in this session (dialog or drag & drop) and only writes to those or to the one chosen in the save dialog.',
         'If a virus scanner or OneDrive briefly holds the file on Windows, pdfedit retries for about two seconds. If it is open in another program (e.g. Acrobat), pdfedit says so clearly — the original stays untouched.',
+        'If saving fails (e.g. because the file is locked), the tab stays marked as unsaved and closing still asks. While a file is being written, “Save” is disabled; if you keep editing meanwhile, the tab stays unsaved.',
         'If you type a name without “.pdf” in the save dialog, pdfedit appends the extension and asks first if that file already exists.',
-        'If a save or a longer task (OCR, compressing, redacting …) is still running when you quit, pdfedit asks first instead of cutting it off.',
+        'If a save or a longer task (OCR, compressing, redacting …) is still running when you quit (⌘Q on macOS included), pdfedit asks first instead of cutting it off.',
       ],
     },
     {

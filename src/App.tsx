@@ -225,7 +225,15 @@ export default function App() {
     [pendingProtected, addDoc, toast]
   );
 
+  // per doc: bumped on every "became dirty" — a save that finishes after
+  // the user edited again must not mark the tab clean or reload it
+  const editGenRef = useRef(new Map<number, number>());
+  // per doc: the save currently writing — saves run one after another, so
+  // an older write can never land on disk after a newer one
+  const saveChainRef = useRef(new Map<number, Promise<unknown>>());
+
   const setDirty = useCallback((id: number, dirty: boolean) => {
+    if (dirty) editGenRef.current.set(id, (editGenRef.current.get(id) ?? 0) + 1);
     setDocs((d) => d.map((doc) => (doc.id === id ? { ...doc, dirty } : doc)));
   }, []);
 
@@ -313,27 +321,47 @@ export default function App() {
     [addDoc]
   );
 
+  /** Writes a document to disk. Resolves to true once it is there; on a
+   *  failure the tab is marked unsaved again (the viewer cleared the flag
+   *  when the save started) so closing still asks. */
   const saveDoc = useCallback(
-    async (id: number, bytes: Uint8Array, protectionOverride?: Protection | null) => {
-      const doc = docsRef.current.find((d) => d.id === id);
-      if (!doc) return;
+    (id: number, bytes: Uint8Array, protectionOverride?: Protection | null): Promise<boolean> => {
+      const gen = editGenRef.current.get(id) ?? 0;
       savingRef.current++;
-      try {
-        const protection = protectionOverride !== undefined ? protectionOverride : doc.protection;
-        // encrypt only what goes to disk — the working copy stays plain
-        const fileBytes = protection ? await encryptPdf(bytes, protection) : bytes;
-        if (isTauri && doc.path) {
-          await api.writePdf(doc.path, bytesToBase64(fileBytes));
-        } else {
-          downloadBytes(doc.name, fileBytes);
+      const run = async (): Promise<boolean> => {
+        const doc = docsRef.current.find((d) => d.id === id);
+        if (!doc) return false;
+        try {
+          const protection = protectionOverride !== undefined ? protectionOverride : doc.protection;
+          // encrypt only what goes to disk — the working copy stays plain
+          const fileBytes = protection ? await encryptPdf(bytes, protection) : bytes;
+          if (isTauri && doc.path) {
+            await api.writePdf(doc.path, bytesToBase64(fileBytes));
+          } else {
+            downloadBytes(doc.name, fileBytes);
+          }
+          // edited again while the file was being written: the disk has the
+          // older state — keep the tab dirty and don't reload the viewer
+          if ((editGenRef.current.get(id) ?? 0) === gen) {
+            setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes, dirty: false } : x)));
+          }
+          toast(t.saved);
+          return true;
+        } catch (err) {
+          // not via setDirty: a failed write is no new edit (a later queued
+          // save of the same state may still mark the tab clean)
+          setDocs((d) => d.map((x) => (x.id === id ? { ...x, dirty: true } : x)));
+          toast(`${t.saveError}: ${errText(err)}`, true);
+          return false;
         }
-        setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes, dirty: false } : x)));
-        toast(t.saved);
-      } catch (err) {
-        toast(`${t.saveError}: ${errText(err)}`, true);
-      } finally {
+      };
+      const prev = saveChainRef.current.get(id) ?? Promise.resolve();
+      const next = prev.then(run, run).finally(() => {
         savingRef.current--;
-      }
+        if (saveChainRef.current.get(id) === next) saveChainRef.current.delete(id);
+      });
+      saveChainRef.current.set(id, next);
+      return next;
     },
     [toast]
   );
