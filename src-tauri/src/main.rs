@@ -177,6 +177,28 @@ async fn write_pdf(
     Ok(())
 }
 
+/// Native OK/Cancel question ("discard unsaved changes?"). `window.confirm`
+/// can't be used inside Tauri: the dialog plugin replaces it with an async
+/// stub that returns a Promise (always truthy, so every unsaved-changes
+/// guard would silently pass) and calls a command the plugin no longer has.
+#[tauri::command]
+async fn confirm_dialog(
+    window: tauri::Window,
+    message: String,
+    ok_label: String,
+    cancel_label: String,
+) -> Result<bool, String> {
+    use tauri_plugin_dialog::{MessageDialogButtons, MessageDialogKind};
+    Ok(window
+        .dialog()
+        .message(message)
+        .title("pdfedit")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom(ok_label, cancel_label))
+        .parent(&window)
+        .blocking_show())
+}
+
 #[derive(Serialize)]
 pub struct SystemFontDto {
     /// Display name (full name from the name table, falls back to the stem).
@@ -461,6 +483,7 @@ fn main() {
             read_pdf,
             pick_save_pdf,
             write_pdf,
+            confirm_dialog,
             list_system_fonts,
             read_font,
             check_update,
@@ -532,6 +555,24 @@ mod tests {
             .collect();
         assert!(names.iter().all(|n| !n.ends_with(".tmp")), "{names:?}");
         assert_eq!(names.len(), 2);
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn unicode_and_space_paths_work() {
+        let d = scratch("unicode");
+        let dir = d.join("Ordner mit Ä ü ß");
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("Bericht März 2026.PDF");
+        let w = WritablePaths::default();
+        w.allow(&f);
+        assert!(w.is_allowed(&f));
+        write_atomic(&f, b"%PDF-1.7 umlaut").unwrap();
+        assert_eq!(std::fs::read(&f).unwrap(), b"%PDF-1.7 umlaut");
+        write_atomic(&f, b"%PDF-1.7 again").unwrap();
+        assert_eq!(std::fs::read(&f).unwrap(), b"%PDF-1.7 again");
+        assert!(w.is_allowed(&std::fs::canonicalize(&f).unwrap()));
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
         std::fs::remove_dir_all(&d).unwrap();
     }
 

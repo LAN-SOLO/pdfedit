@@ -133,6 +133,8 @@ const de = {
   editRegionLostWarning: 'Nicht abgeschlossene Bereichs-Bearbeitung wurde beim Tab-Wechsel verworfen.',
   unsavedCloseConfirm:
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
+  discardAndClose: 'Verwerfen und schließen',
+  discardAndQuit: 'Verwerfen und beenden',
   unsavedQuitConfirm:
     'Es gibt ungespeicherte Änderungen in einem oder mehreren Tabs. Trotzdem beenden und Änderungen verwerfen?',
   newPdfTitle: 'Neues PDF erstellen',
@@ -483,6 +485,8 @@ const en: typeof de = {
   editRegionError: 'Edit failed',
   editRegionLostWarning: 'An unfinished area edit was discarded when the tab changed.',
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
+  discardAndClose: 'Discard and close',
+  discardAndQuit: 'Discard and quit',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',
   newPdfTitle: 'Create a new PDF',

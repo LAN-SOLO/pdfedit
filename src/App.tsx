@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { api, isTauri, UpdateInfo } from './api';
+import { api, askConfirm, isTauri, UpdateInfo } from './api';
 import { bytesToBase64, downloadBytes } from './bytes';
 import { t } from './i18n';
 import { applyTheme, loadTheme, type Theme } from './theme';
@@ -110,7 +110,9 @@ export default function App() {
     getCurrentWindow()
       .onCloseRequested(async (event) => {
         if (docsRef.current.some((d) => d.dirty)) {
-          if (!window.confirm(t.unsavedQuitConfirm)) event.preventDefault();
+          if (!(await askConfirm(t.unsavedQuitConfirm, t.discardAndQuit, t.cancel))) {
+            event.preventDefault();
+          }
         }
       })
       .then((fn) => {
@@ -219,9 +221,9 @@ export default function App() {
   );
 
   const closeTab = useCallback(
-    (id: number) => {
+    async (id: number) => {
       const doc = docsRef.current.find((d) => d.id === id);
-      if (doc?.dirty && !window.confirm(t.unsavedCloseConfirm)) return;
+      if (doc?.dirty && !(await askConfirm(t.unsavedCloseConfirm, t.discardAndClose, t.cancel))) return;
       setDocs((d) => {
         const idx = d.findIndex((x) => x.id === id);
         const rest = d.filter((x) => x.id !== id);

@@ -26,8 +26,23 @@ export const api = {
   readPdf: (path: string) => invoke<ArrayBuffer>('read_pdf', { path }),
   pickSavePdf: (suggested: string) => invoke<string | null>('pick_save_pdf', { suggested }),
   writePdf: (path: string, dataB64: string) => invoke<void>('write_pdf', { path, dataB64 }),
+  confirmDialog: (message: string, okLabel: string, cancelLabel: string) =>
+    invoke<boolean>('confirm_dialog', { message, okLabel, cancelLabel }),
   listSystemFonts: () => invoke<SystemFont[]>('list_system_fonts'),
   readFont: (path: string) => invoke<ArrayBuffer>('read_font', { path }),
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
   installUpdate: () => invoke<void>('install_update'),
 };
+
+/** OK/Cancel question. Inside Tauri a native dialog — `window.confirm` is
+ *  replaced there by the dialog plugin's async stub (returns a Promise,
+ *  i.e. always truthy) and must never be used. If the dialog itself fails,
+ *  the answer is "cancel": losing unsaved work is the worse error. */
+export async function askConfirm(message: string, okLabel: string, cancelLabel: string): Promise<boolean> {
+  if (!isTauri) return window.confirm(message);
+  try {
+    return await api.confirmDialog(message, okLabel, cancelLabel);
+  } catch {
+    return false;
+  }
+}
