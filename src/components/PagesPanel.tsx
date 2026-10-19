@@ -6,7 +6,19 @@ import { api, isTauri } from '../api';
 import { bytesToBase64, downloadBytes } from '../bytes';
 import { t } from '../i18n';
 import { organizePages } from '../pages';
-import { isPasswordProtected } from '../protect';
+import { decryptPdf, isPasswordProtected } from '../protect';
+
+/** Bytes ready to merge: plain PDFs as they are, PDFs with only permission
+ *  restrictions (empty open password) decrypted — null for a real open
+ *  password, which has to be removed in its own tab first. */
+async function mergeableBytes(buf: Uint8Array): Promise<Uint8Array | null> {
+  if (!(await isPasswordProtected(buf))) return buf;
+  try {
+    return await decryptPdf(buf, '');
+  } catch {
+    return null;
+  }
+}
 
 interface SourceDoc {
   bytes: Uint8Array;
@@ -175,8 +187,8 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
     try {
       const path = await api.pickPdf();
       if (!path) return;
-      const buf = new Uint8Array(await api.readPdf(path));
-      if (await isPasswordProtected(buf)) {
+      const buf = await mergeableBytes(new Uint8Array(await api.readPdf(path)));
+      if (!buf) {
         onError(t.pagesMergeProtected);
         return;
       }
@@ -189,8 +201,8 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
   const onBrowserMergeFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
-      const buf = new Uint8Array(await file.arrayBuffer());
-      if (await isPasswordProtected(buf)) {
+      const buf = await mergeableBytes(new Uint8Array(await file.arrayBuffer()));
+      if (!buf) {
         onError(t.pagesMergeProtected);
         return;
       }

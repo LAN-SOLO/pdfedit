@@ -132,6 +132,17 @@ export async function organizePages(sources: Uint8Array[], slots: OrganizeSlot[]
     }
   }
 
+  // Bookmarks, named destinations, links and widget /P entries can still
+  // point at a deleted page object and keep it reachable — the sweep below
+  // would then leave its content in the file. Hollow such pages out: only
+  // an empty /Type /Page shell remains (links to it simply do nothing).
+  for (const page of original) {
+    if (keptRefs.has(page.ref.toString())) continue;
+    for (const key of page.node.keys()) {
+      if (key !== PDFName.of('Type')) page.node.delete(key);
+    }
+  }
+
   const root = rootNode;
   const rootRef = doc.catalog.get(PDFName.of('Pages'));
   const kids = ctx.obj(finalPages.map((p) => p.ref));

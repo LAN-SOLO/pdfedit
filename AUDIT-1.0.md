@@ -188,3 +188,85 @@ erlaubt“ (nur Berechtigungen), ein `.p12`-Zertifikat.
     verständlicher Fehler, Original unbeschädigt.
 19. Hilfe (DE/EN-Umschalter), Hell/Dunkel-Umschalter.
 20. Updater: sobald ein höheres Release existiert, Changelog-Dialog → Installation.
+
+## 8. Verifikation (unabhängige Zweitprüfung, 2026-10-19)
+
+Zweiter Prüfer, Ziel: die Aussagen oben widerlegen. Alle Suiten selbst neu
+ausgeführt; danach drei echte Fehler behoben (Commit nach `f1bf2e7`).
+
+**Testläufe (nach den Fixes)**
+
+| Befehl | Ergebnis |
+|---|---|
+| `cargo test --workspace` | 9 grün (neu: Pfade mit Leerzeichen/Umlauten, `.PDF` groß) |
+| `pnpm test` | 14 grün (neu: gelöschte Seite trotz Lesezeichen/Link weg) |
+| `scripts/e2e-browser.mjs` (Chromium headless, `vite --port 1437`) | 6 grün |
+| `tsc --noEmit`, `pnpm build` | fehlerfrei; `dist/pdfjs/{cmaps,wasm,iccs}` per `vite preview` mit HTTP 200 ausgeliefert |
+| `cargo clippy` | 2 Stil-Hinweise (unverändert) |
+| `pnpm audit --prod` | 1 high: node-forge GHSA-86w9-cpqp-85rv, npm hat weiterhin nur 1.4.0 |
+
+**Widerlegte bzw. eingeschränkte Aussagen**
+
+1. *„Ungespeicherte Änderungen → Rückfrage“ (Hilfe, Testliste Punkt 17)* — war
+   in der App **wirkungslos, auf macOS und Windows**: `tauri-plugin-dialog`
+   ersetzt per Init-Skript `window.confirm` durch eine `async`-Funktion. Sie
+   gibt ein Promise zurück (immer truthy), `!window.confirm(...)` war also immer
+   `false` — Tab bzw. Fenster schlossen ohne Rückfrage, Änderungen weg. Der
+   aufgerufene Befehl `plugin:dialog|confirm` existiert in 2.7 nicht einmal.
+   Im Browser-E2E nicht sichtbar, weil dort das echte `window.confirm` gilt.
+   **Fix:** neuer Rust-Befehl `confirm_dialog` (nativer OK/Abbrechen-Dialog,
+   Fenster als Parent, Buttons „Verwerfen und schließen/beenden“ DE/EN),
+   Frontend `askConfirm()` in `src/api.ts`; schlägt der Dialog fehl, gilt
+   „Abbrechen“. `window.confirm` wird in Tauri nirgends mehr benutzt.
+2. *„Gelöschte Seiten verschwinden vollständig aus der Datei“ (Hilfe, Seiten)* —
+   stimmte nur ohne Verweise. Zeigt ein Lesezeichen, ein benanntes Ziel, ein
+   Link oder ein Widget-`/P` auf die gelöschte Seite, blieb das Seitenobjekt
+   erreichbar und der Unreachable-Sweep ließ ihren **Inhaltsstrom samt Text in
+   der Datei** (Test zuerst rot reproduziert). **Fix:** gelöschte Seiten werden
+   in `organizePages` zu einer leeren `/Type /Page`-Hülle geleert; Lesezeichen
+   und Links bleiben lesbar (pdf.js: Outline + Annotation geprüft), zeigen nur
+   ins Leere.
+3. *„write_pdf: nur in dieser Sitzung geöffnete/gewählte Pfade“* — formal
+   richtig, aber `read_pdf` nimmt jeden `*.pdf`-Pfad vom Frontend an und
+   schaltet ihn damit schreibbar. Eine kompromittierte Webview könnte also
+   jede vorhandene PDF-Datei lesen und mit gültigem PDF überschreiben. Rest-
+   risiko **niedrig** (CSP `default-src 'self'`, pdf.js-Scripting aus, keine
+   Fremd-Inhalte); eine Bindung an Rust-seitig erfasste Dialog-/Drop-Pfade
+   würde Drag & Drop berühren, das hier nicht nativ testbar ist — offen
+   gelassen, dokumentiert.
+4. *Komprimieren behält `/Mask`* — für Farbschlüssel-Masken (`/Mask [Bereiche]`)
+   falsch: nach verlustbehafteter Neukodierung (Grau → RGB) passen Werte und
+   Komponentenzahl nicht mehr. **Fix:** solche Bilder werden übersprungen;
+   Stencil-Masken (Stream) und `/SMask` bleiben wie gehabt erhalten.
+
+**Kleinere Ergänzungen**
+
+- Seiten-Dialog „PDF anhängen“: PDFs mit nur Berechtigungs-Einschränkungen
+  werden jetzt (wie beim Öffnen) mit leerem Passwort entschlüsselt und
+  angehängt statt abgelehnt; Hilfe DE/EN angepasst.
+- `ensure_pdf_ext`: hängt der Speichern-Dialog `.pdf` nicht selbst an und gibt
+  es `name.pdf` schon, wird diese Datei ohne OS-Rückfrage ersetzt (der Dialog
+  hat nur `name` geprüft). Selten (Windows/Linux, Name ohne Endung); notiert.
+
+**Bestätigt (selbst geprüft)**
+
+- Version 1.0.0 in `package.json`, `tauri.conf.json`, `src-tauri/Cargo.toml`,
+  `Cargo.lock` (`pdfedit-app 1.0.0`); App liest sie zur Laufzeit per
+  `getVersion()`, keine hartkodierte Versionsangabe im UI.
+- `build.yml`: Frontend-Build vor `cargo test`, `pnpm test` auf allen Runnern
+  (Node 22 = lokal getestete Version, Tests ohne Unix-Pfadannahmen),
+  Signatur/Notarisierung unverändert; der Updater-Archiv-Rename passt zu
+  `productName` `pdfedit`.
+- Invoke-Namen/Argumente stimmen mit den Rust-Signaturen überein
+  (`dataB64` → `data_b64`, `okLabel` → `ok_label` usw.).
+- pdf.js-Ressourcen: unter `tauri://` (macOS) nutzt pdf.js XHR, unter
+  `http://tauri.localhost` (Windows) `fetch` — beides nur statisch geprüft.
+
+**Manuell zusätzlich (zu Abschnitt 7)**
+
+- Punkt 17 jetzt mit nativem Dialog: Tab mit Änderungen schließen →
+  „Verwerfen und schließen“ / „Abbrechen“; Fenster schließen → „Verwerfen
+  und beenden“ / „Abbrechen“; beide Sprachen, macOS (Sheet am Fenster) und
+  Windows.
+- Seiten löschen in einem PDF mit Inhaltsverzeichnis-Lesezeichen → Lesezeichen
+  der gelöschten Seite tut nichts, Rest funktioniert.

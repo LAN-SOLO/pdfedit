@@ -33,6 +33,7 @@ import { dropStructureTree, pruneUnreachable, replacePageWithImage } from '../sr
 import { matchFont, parsePdfFontName, stdKeyFor } from '../src/fontMatch';
 import { applyRunEdit } from '../src/textEdit';
 import { bytesToBase64 } from '../src/bytes';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 // ---------------------------------------------------------------- protect
 
@@ -462,4 +463,44 @@ export async function test_owner_only_protection_opens_with_empty_password() {
   assert.deepEqual(await pageTexts(await decryptPdf(enc, '')), ['OWNERONLY']);
   const real = await encryptPdf(await makePdf(['X']), { userPassword: 'u', ownerPassword: 'o', permissions: allPermissions });
   await assert.rejects(() => decryptPdf(real, ''), (e: unknown) => isWrongPasswordError(e));
+}
+
+export async function test_organize_pages_deleted_page_gone_despite_bookmark_and_link() {
+  // bookmarks, named destinations and links that point at a deleted page
+  // keep the page object reachable — its content must still be gone
+  const base = await makePdf(['KEEP-1', 'SECRET-PAGE-2']);
+  const d = await PDFDocument.load(base);
+  const ctx = d.context;
+  const p1 = d.getPage(0);
+  const p2 = d.getPage(1);
+  const outlines = ctx.register(ctx.obj({ Type: 'Outlines', Count: 1 }));
+  const item = ctx.register(
+    ctx.obj({ Title: PDFString.of('Kapitel'), Parent: outlines, Dest: [p2.ref, PDFName.of('Fit')] })
+  );
+  const ol = ctx.lookup(outlines, PDFDict);
+  ol.set(PDFName.of('First'), item);
+  ol.set(PDFName.of('Last'), item);
+  d.catalog.set(PDFName.of('Outlines'), outlines);
+  const link = ctx.register(
+    ctx.obj({ Type: 'Annot', Subtype: 'Link', Rect: [0, 0, 50, 50], Dest: [p2.ref, PDFName.of('Fit')] })
+  );
+  p1.node.set(PDFName.of('Annots'), ctx.obj([link]));
+  const withRefs = await d.save();
+
+  const out = await organizePages([withRefs], [
+    { kind: 'page', sourceIndex: 0, sourcePageIndex: 0, rotation: 0, width: 0, height: 0 },
+  ]);
+  assert.deepEqual(await pageTexts(out), ['KEEP-1']);
+  assert.equal(fileContains(out, 'SECRET-PAGE-2'), false, 'deleted page content still in file');
+  // the bookmark itself survives (it just has no target page any more)
+  const re = await PDFDocument.load(out);
+  assert.ok(re.catalog.get(PDFName.of('Outlines')), 'bookmarks dropped');
+  // pdf.js still reads the outline and the link (targets just don't resolve)
+  const task = pdfjs.getDocument({ data: out.slice() });
+  const pdf = await task.promise;
+  const outline = await pdf.getOutline();
+  assert.equal(outline?.[0]?.title, 'Kapitel');
+  const annots = await (await pdf.getPage(1)).getAnnotations();
+  assert.equal(annots.length, 1);
+  await task.destroy();
 }

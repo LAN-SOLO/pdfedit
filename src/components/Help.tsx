@@ -247,7 +247,7 @@ const de: Content = {
         '• Zusammenführen — ein weiteres PDF ans Dokument anhängen',
         '• Ausgewählte Seiten exportieren — als neues, eigenes PDF speichern',
         'Wichtig: Erst „Anwenden“ schreibt die Änderungen ins Dokument; bis dahin ist alles unverbindlich.',
-        'Formularfelder, Lesezeichen und Metadaten bleiben beim Anwenden erhalten. Gelöschte Seiten verschwinden vollständig aus der Datei — samt ihrer Formularfelder. Passwortgeschützte PDFs vor dem Anhängen in einem eigenen Tab entschützen.',
+        'Formularfelder, Lesezeichen und Metadaten bleiben beim Anwenden erhalten. Gelöschte Seiten verschwinden vollständig aus der Datei — samt ihrer Formularfelder. PDFs mit Öffnen-Passwort vor dem Anhängen in einem eigenen Tab entschützen (reine Berechtigungs-Einschränkungen hängt pdfedit direkt an).',
       ],
     },
     {
@@ -555,7 +555,7 @@ const en: Content = {
         '• Merge — append another PDF to the document',
         '• Export selected pages — save them as a new, separate PDF',
         'Important: only “Apply” writes the changes into the document; until then everything is tentative.',
-        'Form fields, bookmarks and metadata survive “Apply”. Deleted pages are removed from the file completely — including their form fields. Remove the protection of password-protected PDFs (in their own tab) before appending them.',
+        'Form fields, bookmarks and metadata survive “Apply”. Deleted pages are removed from the file completely — including their form fields. Remove the open password of protected PDFs (in their own tab) before appending them (PDFs with permission restrictions only are appended directly).',
       ],
     },
     {

@@ -45,6 +45,9 @@ const isPlainJpeg = (dict: PDFDict): boolean => {
   const filter = dict.get(PDFName.of('Filter'));
   if (!(filter instanceof PDFName) || filter.decodeText() !== 'DCTDecode') return false;
   if (dict.get(PDFName.of('ImageMask')) || dict.get(PDFName.of('Decode'))) return false;
+  // color-key masking (/Mask [ranges]) matches exact sample values per
+  // component — a lossy, gray→RGB re-encode would break or invalidate it
+  if (dict.lookup(PDFName.of('Mask')) instanceof PDFArray) return false;
   return isRgbOrGray(dict);
 };
 
