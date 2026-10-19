@@ -1,5 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from './pdfjsConfig';
 import { PDFDocument as PdfLibDocument, PDFName, PDFRef } from 'pdf-lib';
+import { dropStructureTree, pruneUnreachable, replacePageWithImage } from './pdfScrub';
 
 /** A marked rectangle, normalized to the page's own displayed size (0..1)
  *  so it stays correct regardless of what zoom level it was drawn at. */
@@ -30,11 +32,10 @@ const RASTER_SCALE = 3;
 /** For every marked page: rasterizes it (via pdf.js, same technique as
  *  PagesPanel's thumbnails) with the marked rectangles painted solid black
  *  directly into the pixels *before* capture, then replaces that page in
- *  the pdf-lib document with a brand-new page holding only that image.
- *  Building a fresh page (not mutating the old one) is what guarantees the
- *  original text/vectors/annotations are actually gone, not just covered —
- *  there is no leftover content stream, resources or /Annots to accidentally
- *  leak through. Shared object dedup doesn't apply here (each page's
+ *  the pdf-lib document with only that image (same page object, new
+ *  content, old /Resources and /Annots dropped). The unreachable-object
+ *  sweep afterwards is what guarantees the original text/vectors/
+ *  annotations are actually gone from the FILE, not just covered. Shared object dedup doesn't apply here (each page's
  *  content is page-specific), so no cross-page cache is needed. */
 export const redactPdf = async (
   bytes: Uint8Array,
@@ -51,11 +52,10 @@ export const redactPdf = async (
     pdfDoc.getForm().flatten();
   }
 
-  const pdfjsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  const pdfjsTask = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: bytes.slice() });
+  const pdfjsDoc = await pdfjsTask.promise;
   let pagesRedacted = 0;
 
-  // Descending page index: removePage/insertPage at a given index doesn't
-  // disturb indices we haven't processed yet.
   const pageIndices = [...marksByPage.keys()].sort((a, b) => b - a);
 
   for (const pageIndex of pageIndices) {
@@ -118,14 +118,13 @@ export const redactPdf = async (
     if (!blob) continue;
     const rasterBytes = new Uint8Array(await blob.arrayBuffer());
 
-    const width = pointsViewport.width;
-    const height = pointsViewport.height;
-    pdfDoc.removePage(pageIndex);
-    const newPage = pdfDoc.insertPage(pageIndex, [width, height]);
-    const img = await pdfDoc.embedPng(rasterBytes);
-    newPage.drawImage(img, { x: 0, y: 0, width, height });
+    // same page object, new content (see pdfScrub.ts for why not
+    // removePage + insertPage)
+    await replacePageWithImage(pdfDoc, pageIndex, rasterBytes, pointsViewport.width, pointsViewport.height);
     pagesRedacted += 1;
   }
+  await pdfjsTask.destroy();
+  if (pagesRedacted > 0) dropStructureTree(pdfDoc);
 
   if (opts.cleanMetadata) {
     pdfDoc.setTitle('');
@@ -147,6 +146,8 @@ export const redactPdf = async (
     }
   }
 
+  // without this the original content streams would still be in the file
+  await pruneUnreachable(pdfDoc);
   const outBytes = await pdfDoc.save();
   return { bytes: outBytes, pagesRedacted };
 };

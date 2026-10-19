@@ -1,5 +1,7 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFJS_DOC_OPTIONS } from './pdfjsConfig';
 import { PDFDocument as PdfLibDocument, StandardFonts, rgb } from 'pdf-lib';
+import { pruneUnreachable, replacePageWithImage } from './pdfScrub';
 
 export interface EditRegion {
   pageIndex: number;
@@ -29,7 +31,8 @@ export const applyRegionEdit = async (
   content: EditContent
 ): Promise<Uint8Array> => {
   const pdfDoc = await PdfLibDocument.load(bytes);
-  const pdfjsDoc = await pdfjsLib.getDocument({ data: bytes.slice() }).promise;
+  const pdfjsTask = pdfjsLib.getDocument({ ...PDFJS_DOC_OPTIONS, data: bytes.slice() });
+  const pdfjsDoc = await pdfjsTask.promise;
   const page = await pdfjsDoc.getPage(region.pageIndex + 1);
   const pointsViewport = page.getViewport({ scale: 1 });
   const rasterViewport = page.getViewport({ scale: RASTER_SCALE });
@@ -55,10 +58,9 @@ export const applyRegionEdit = async (
 
   const width = pointsViewport.width;
   const height = pointsViewport.height;
-  pdfDoc.removePage(region.pageIndex);
-  const newPage = pdfDoc.insertPage(region.pageIndex, [width, height]);
-  const bgImg = await pdfDoc.embedPng(rasterBytes);
-  newPage.drawImage(bgImg, { x: 0, y: 0, width, height });
+  await pdfjsTask.destroy();
+  await replacePageWithImage(pdfDoc, region.pageIndex, rasterBytes, width, height);
+  const newPage = pdfDoc.getPage(region.pageIndex);
 
   // Region in PDF point space (bottom-left origin — the raster/percentage
   // space is top-left origin, same Y-flip as redact.ts/ocr.ts).
@@ -101,5 +103,6 @@ export const applyRegionEdit = async (
     newPage.drawImage(embedded, { x: rx + (rw - w) / 2, y: ry + (rh - h) / 2, width: w, height: h });
   }
 
+  await pruneUnreachable(pdfDoc);
   return pdfDoc.save();
 };
