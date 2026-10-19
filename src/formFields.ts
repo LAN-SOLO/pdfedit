@@ -1,4 +1,13 @@
-import { PDFArray, PDFDict, PDFDocument, PDFName, rgb } from 'pdf-lib';
+import {
+  PDFArray,
+  PDFCheckBox,
+  PDFDict,
+  PDFDocument,
+  PDFDropdown,
+  PDFName,
+  PDFTextField,
+  rgb,
+} from 'pdf-lib';
 
 /** Creating real AcroForm fields (Acrobat "Prepare form"): the field is
  *  placed via a dragged page region, written with pdf-lib's form API and is
@@ -179,32 +188,29 @@ export async function listFormFields(bytes: Uint8Array): Promise<FieldSummary[]>
     const doc = await PDFDocument.load(bytes);
     const out: FieldSummary[] = [];
     for (const field of doc.getForm().getFields()) {
-      const ctor = field.constructor.name;
+      // instanceof, not constructor.name — the production build minifies
+      // pdf-lib's class names, which silently emptied the objects panel
       let kind: FieldKind | null = null;
       let options: string[] = [];
       let defaultValue = '';
-      if (ctor === 'PDFTextField') {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        kind = (field as any).isMultiline?.() ? 'multiline' : 'text';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        defaultValue = (field as any).getText?.() ?? '';
-      } else if (ctor === 'PDFCheckBox') {
+      if (field instanceof PDFTextField) {
+        kind = field.isMultiline() ? 'multiline' : 'text';
+        defaultValue = field.getText() ?? '';
+      } else if (field instanceof PDFCheckBox) {
         kind = 'checkbox';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        defaultValue = (field as any).isChecked?.() ? 'on' : '';
-      } else if (ctor === 'PDFDropdown') {
+        defaultValue = field.isChecked() ? 'on' : '';
+      } else if (field instanceof PDFDropdown) {
         kind = 'dropdown';
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        options = (field as any).getOptions?.() ?? [];
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        defaultValue = ((field as any).getSelected?.() ?? [])[0] ?? '';
+        options = field.getOptions();
+        defaultValue = field.getSelected()[0] ?? '';
       }
       if (!kind) continue; // signatures & radio groups aren't panel-managed
+      const region = widgetRegion(doc, field.getName());
       out.push({
         name: field.getName(),
         kind,
-        pageIndex: widgetRegion(doc, field.getName())?.pageIndex ?? 0,
-        region: widgetRegion(doc, field.getName()),
+        pageIndex: region?.pageIndex ?? 0,
+        region,
         options,
         defaultValue,
       });

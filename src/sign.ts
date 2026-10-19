@@ -198,7 +198,7 @@ async function addPlaceholder(
   });
   const widgetRef = ctx.register(widget);
 
-  const annots = page.node.lookup(PDFName.of('Annots'), PDFArray) ?? null;
+  const annots = page.node.lookupMaybe(PDFName.of('Annots'), PDFArray) ?? null;
   if (annots) annots.push(widgetRef);
   else page.node.set(PDFName.of('Annots'), ctx.obj([widgetRef]));
 
@@ -210,8 +210,9 @@ async function addPlaceholder(
     );
   } else {
     const acroDict = doc.catalog.lookup(PDFName.of('AcroForm')) as import('pdf-lib').PDFDict;
-    const fields = acroDict.lookup(PDFName.of('Fields'), PDFArray);
-    fields.push(widgetRef);
+    const fields = acroDict.lookupMaybe(PDFName.of('Fields'), PDFArray);
+    if (fields) fields.push(widgetRef);
+    else acroDict.set(PDFName.of('Fields'), ctx.obj([widgetRef]));
     acroDict.set(PDFName.of('SigFlags'), PDFNumber.of(3));
   }
 
