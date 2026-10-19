@@ -1,7 +1,9 @@
 import {
   PDFDocument as PdfLibDocument,
+  PDFArray,
   PDFName,
   PDFDict,
+  PDFNumber,
   PDFRawStream,
   PDFRef,
 } from 'pdf-lib';
@@ -11,7 +13,8 @@ export type CompressPreset = 'fast' | 'balanced' | 'small';
 /** Downsample scale + re-encode quality per preset. Deliberately scoped to
  *  embedded JPEGs (Filter = plain /DCTDecode) — by far the most common
  *  space hog in real-world PDFs (scans, photos). Raw/Flate-sampled bitmaps,
- *  JPEG2000, CCITT fax and multi-filter chains are left untouched rather
+ *  JPEG2000, CCITT fax, multi-filter chains and non-RGB/gray JPEGs (CMYK,
+ *  Indexed, /Decode) are left untouched rather
  *  than risking a lossy, hard-to-verify pixel reconstruction for a first
  *  release. */
 const PRESETS: Record<CompressPreset, { scale: number; quality: number }> = {
@@ -20,12 +23,34 @@ const PRESETS: Record<CompressPreset, { scale: number; quality: number }> = {
   small: { scale: 0.45, quality: 0.55 },
 };
 
+/** Color spaces a browser canvas re-encodes faithfully as an RGB JPEG.
+ *  CMYK (inverted Adobe JPEGs, /Decode arrays), Indexed, Separation,
+ *  Lab etc. would come back with wrong colors — those images are skipped. */
+const isRgbOrGray = (dict: PDFDict): boolean => {
+  const cs = dict.lookup(PDFName.of('ColorSpace'));
+  if (cs instanceof PDFName) return cs.decodeText() === 'DeviceRGB' || cs.decodeText() === 'DeviceGray';
+  if (cs instanceof PDFArray && cs.size() >= 2) {
+    const kind = cs.lookup(0);
+    if (!(kind instanceof PDFName) || kind.decodeText() !== 'ICCBased') return false;
+    const profile = cs.lookup(1);
+    const n = profile instanceof PDFRawStream ? profile.dict.lookup(PDFName.of('N')) : undefined;
+    return n instanceof PDFNumber && (n.asNumber() === 3 || n.asNumber() === 1);
+  }
+  return false;
+};
+
 const isPlainJpeg = (dict: PDFDict): boolean => {
   const subtype = dict.lookupMaybe(PDFName.of('Subtype'), PDFName);
   if (!subtype || subtype.decodeText() !== 'Image') return false;
   const filter = dict.get(PDFName.of('Filter'));
-  return filter instanceof PDFName && filter.decodeText() === 'DCTDecode';
+  if (!(filter instanceof PDFName) || filter.decodeText() !== 'DCTDecode') return false;
+  if (dict.get(PDFName.of('ImageMask')) || dict.get(PDFName.of('Decode'))) return false;
+  return isRgbOrGray(dict);
 };
+
+/** Entries that must survive the re-encode — above all the soft mask,
+ *  without which transparent images turn into opaque boxes. */
+const KEEP_KEYS = ['SMask', 'Mask', 'Interpolate', 'Intent', 'OC', 'Metadata', 'StructParent'];
 
 interface Recompressed {
   bytes: Uint8Array;
@@ -109,6 +134,10 @@ export const compressPdf = async (
         ColorSpace: 'DeviceRGB',
         Filter: 'DCTDecode',
       });
+      for (const k of KEEP_KEYS) {
+        const v = stream.dict.get(PDFName.of(k));
+        if (v !== undefined) newStream.dict.set(PDFName.of(k), v);
+      }
 
       if (ref) context.assign(ref, newStream);
       else xobjects.set(name, newStream);
