@@ -450,3 +450,16 @@ export async function test_base64_large_buffer() {
   const b64 = bytesToBase64(big);
   assert.equal(Buffer.from(big).toString('base64'), b64);
 }
+
+export async function test_owner_only_protection_opens_with_empty_password() {
+  const enc = await encryptPdf(await makePdf(['OWNERONLY']), {
+    userPassword: '',
+    ownerPassword: 'owner-secret',
+    permissions: { ...allPermissions, printing: false },
+  });
+  assert.equal(await isPasswordProtected(enc), true);
+  // App.openBytes tries the empty open password first
+  assert.deepEqual(await pageTexts(await decryptPdf(enc, '')), ['OWNERONLY']);
+  const real = await encryptPdf(await makePdf(['X']), { userPassword: 'u', ownerPassword: 'o', permissions: allPermissions });
+  await assert.rejects(() => decryptPdf(real, ''), (e: unknown) => isWrongPasswordError(e));
+}

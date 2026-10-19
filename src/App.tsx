@@ -158,13 +158,24 @@ export default function App() {
   const openBytes = useCallback(
     async (name: string, data: Uint8Array, path: string | null) => {
       if (await isPasswordProtected(data)) {
+        // Only an owner (permissions) password and no open password — every
+        // viewer opens these without asking, so do we. The restrictions
+        // can't be re-applied without the owner password: say so.
+        try {
+          const decrypted = await decryptPdf(data, '');
+          await addDoc(name, decrypted, path);
+          toast(t.ownerOnlyOpened);
+          return;
+        } catch {
+          // a real open password — ask for it
+        }
         setPwFailed(false);
         setPendingProtected({ name, data, path });
         return;
       }
       await addDoc(name, data, path);
     },
-    [addDoc]
+    [addDoc, toast]
   );
 
   // The working copy is decrypted in memory so every tool just works;

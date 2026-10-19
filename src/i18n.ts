@@ -144,6 +144,8 @@ const de = {
   create: 'Erstellen',
   cancel: 'Abbrechen',
   untitled: 'Unbenannt.pdf',
+  ownerOnlyOpened:
+    'Geöffnet — die Datei hatte nur Berechtigungs-Einschränkungen (kein Öffnen-Passwort). Beim Speichern entfallen sie; neu setzen unter „Schutz“.',
   createError: 'PDF konnte nicht erstellt werden',
   checkForUpdates: 'Nach Updates suchen',
   updateChecking: 'Prüfe …',
@@ -492,6 +494,8 @@ const en: typeof de = {
   create: 'Create',
   cancel: 'Cancel',
   untitled: 'Untitled.pdf',
+  ownerOnlyOpened:
+    'Opened — the file only had permission restrictions (no open password). They are dropped on save; set them again via “Protect”.',
   createError: 'Could not create the PDF',
   checkForUpdates: 'Check for updates',
   updateChecking: 'Checking …',
