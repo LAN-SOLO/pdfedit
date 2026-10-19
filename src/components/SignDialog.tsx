@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { t } from '../i18n';
-import { isWrongP12Password, readP12, type CertInfo } from '../sign';
+import { isWrongP12Password, localDateStamp, readP12, type CertInfo } from '../sign';
 
 export interface SignRequest {
   p12Bytes: Uint8Array;
@@ -91,9 +91,9 @@ export default function SignDialog({ busy, onSign, onCancel }: Props) {
           {certInfo && (
             <div className="ok-text certinfo">
               {t.signCertInfo(
-                certInfo.commonName,
+                certInfo.commonName || t.signUnknownSigner,
                 certInfo.issuerCommonName ?? '?',
-                certInfo.validTo ? certInfo.validTo.toISOString().slice(0, 10) : '?'
+                certInfo.validTo ? localDateStamp(certInfo.validTo) : '?'
               )}
             </div>
           )}

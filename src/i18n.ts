@@ -135,6 +135,9 @@ const de = {
     'Dieser Tab hat ungespeicherte Änderungen. Trotzdem schließen und Änderungen verwerfen?',
   discardAndClose: 'Verwerfen und schließen',
   discardAndQuit: 'Verwerfen und beenden',
+  busyQuitConfirm:
+    'pdfedit arbeitet noch (Speichern, Texterkennung, Komprimieren o. Ä.). Jetzt beenden? Das Ergebnis geht dann verloren.',
+  quitAnyway: 'Trotzdem beenden',
   unsavedQuitConfirm:
     'Es gibt ungespeicherte Änderungen in einem oder mehreren Tabs. Trotzdem beenden und Änderungen verwerfen?',
   newPdfTitle: 'Neues PDF erstellen',
@@ -146,6 +149,39 @@ const de = {
   create: 'Erstellen',
   cancel: 'Abbrechen',
   untitled: 'Unbenannt.pdf',
+  replaceExisting: '„{name}“ existiert bereits. Ersetzen?',
+  replace: 'Ersetzen',
+  errors: {
+    'pdf.not_pdf': 'Das ist keine PDF-Datei.',
+    'pdf.not_found': 'Die Datei wurde nicht gefunden (verschoben oder gelöscht?).',
+    'pdf.read_denied': 'Diese Datei wurde nicht über „PDF öffnen“ oder Drag & Drop gewählt.',
+    'pdf.write_denied': 'Speichern verweigert: Der Pfad wurde in dieser Sitzung weder geöffnet noch gewählt.',
+    'pdf.bad_data': 'Interner Fehler: Die zu speichernden Daten sind kein PDF.',
+    'pdf.bad_name': 'Dieser Dateiname ist unter Windows reserviert (z. B. CON, NUL, COM1) oder endet mit Punkt/Leerzeichen. Bitte einen anderen Namen wählen.',
+    'font.denied': 'Diese Schrift liegt nicht in einem System-Schriftordner.',
+    'io.locked': 'Die Datei ist in einem anderen Programm geöffnet. Bitte dort schließen und erneut versuchen.',
+    'io.denied': 'Keine Berechtigung für diesen Ort (schreibgeschützt oder gesperrt).',
+    'io.not_found': 'Ordner oder Datei nicht gefunden.',
+    'io.full': 'Nicht genug freier Speicherplatz.',
+    'io.other': 'Dateifehler',
+    'update.check': 'Update-Prüfung fehlgeschlagen',
+    'update.none': 'Kein Update verfügbar.',
+    'update.install': 'Update-Installation fehlgeschlagen',
+    'sign.no_key': 'Die Zertifikatsdatei enthält keinen privaten Schlüssel oder kein Zertifikat.',
+    'pages.empty': 'Ein Dokument braucht mindestens eine Seite.',
+  } as Record<string, string>,
+  deleteFieldConfirm: (name: string) =>
+    `Formularfeld „${name}“ löschen? Das lässt sich nicht rückgängig machen (nur durch Schließen ohne Speichern).`,
+  deleteFieldOk: 'Feld löschen',
+  pagesExported: (name: string) => `Exportiert: ${name}`,
+  pageMoveUp: 'Nach oben',
+  pageMoveDown: 'Nach unten',
+  pageRotate: 'Drehen',
+  pageDelete: 'Seite entfernen',
+  signStampLabel: 'Digital signiert',
+  signUnknownSigner: 'Unbekannt',
+  linkCopied: (url: string) => `Externer Link — pdfedit öffnet keine Webseiten. Adresse kopiert: ${url}`,
+  linkBlocked: (url: string) => `Externer Link — pdfedit öffnet keine Webseiten: ${url}`,
   ownerOnlyOpened:
     'Geöffnet — die Datei hatte nur Berechtigungs-Einschränkungen (kein Öffnen-Passwort). Beim Speichern entfallen sie; neu setzen unter „Schutz“.',
   createError: 'PDF konnte nicht erstellt werden',
@@ -487,6 +523,9 @@ const en: typeof de = {
   unsavedCloseConfirm: 'This tab has unsaved changes. Close anyway and discard them?',
   discardAndClose: 'Discard and close',
   discardAndQuit: 'Discard and quit',
+  busyQuitConfirm:
+    'pdfedit is still working (saving, text recognition, compressing or similar). Quit now? The result will be lost.',
+  quitAnyway: 'Quit anyway',
   unsavedQuitConfirm:
     'One or more tabs have unsaved changes. Quit anyway and discard them?',
   newPdfTitle: 'Create a new PDF',
@@ -498,6 +537,39 @@ const en: typeof de = {
   create: 'Create',
   cancel: 'Cancel',
   untitled: 'Untitled.pdf',
+  replaceExisting: '“{name}” already exists. Replace it?',
+  replace: 'Replace',
+  errors: {
+    'pdf.not_pdf': 'This is not a PDF file.',
+    'pdf.not_found': 'The file was not found (moved or deleted?).',
+    'pdf.read_denied': 'This file was not chosen via “Open PDF” or drag & drop.',
+    'pdf.write_denied': 'Save refused: the path was neither opened nor chosen in this session.',
+    'pdf.bad_data': 'Internal error: the data to save is not a PDF.',
+    'pdf.bad_name': 'This file name is reserved on Windows (e.g. CON, NUL, COM1) or ends in a dot/space. Please choose another name.',
+    'font.denied': 'This font is not inside a system font folder.',
+    'io.locked': 'The file is open in another program. Close it there and try again.',
+    'io.denied': 'No permission for this location (read-only or locked).',
+    'io.not_found': 'Folder or file not found.',
+    'io.full': 'Not enough free disk space.',
+    'io.other': 'File error',
+    'update.check': 'Update check failed',
+    'update.none': 'No update available.',
+    'update.install': 'Installing the update failed',
+    'sign.no_key': 'The certificate file contains no private key or no certificate.',
+    'pages.empty': 'A document needs at least one page.',
+  } as Record<string, string>,
+  deleteFieldConfirm: (name: string) =>
+    `Delete form field “${name}”? This can’t be undone (only by closing without saving).`,
+  deleteFieldOk: 'Delete field',
+  pagesExported: (name: string) => `Exported: ${name}`,
+  pageMoveUp: 'Move up',
+  pageMoveDown: 'Move down',
+  pageRotate: 'Rotate',
+  pageDelete: 'Remove page',
+  signStampLabel: 'Digitally signed',
+  signUnknownSigner: 'Unknown',
+  linkCopied: (url: string) => `External link — pdfedit doesn’t open web pages. Address copied: ${url}`,
+  linkBlocked: (url: string) => `External link — pdfedit doesn’t open web pages: ${url}`,
   ownerOnlyOpened:
     'Opened — the file only had permission restrictions (no open password). They are dropped on save; set them again via “Protect”.',
   createError: 'Could not create the PDF',
@@ -703,4 +775,9 @@ const en: typeof de = {
 };
 
 export const dicts = { de, en } as const;
-export const t = navigator.language.toLowerCase().startsWith('de') ? de : en;
+/** UI language: the WebView's navigator.language — macOS (Finder/Dock) and
+ *  Windows start apps without LANG, but WKWebView/WebView2 report the
+ *  system language here. Anything not German falls back to English. */
+export const uiLang: 'de' | 'en' =
+  typeof navigator !== 'undefined' && (navigator.language || '').toLowerCase().startsWith('de') ? 'de' : 'en';
+export const t = dicts[uiLang];

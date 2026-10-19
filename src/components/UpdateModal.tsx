@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { api, UpdateInfo } from '../api';
 import { t } from '../i18n';
+import { errText } from '../errors';
+import { parseUpdateDate } from '../updateDate';
 
 interface Props {
   info: UpdateInfo;
@@ -20,12 +22,12 @@ export default function UpdateModal({ info, onToast, onClose }: Props) {
       await api.installUpdate();
       // on success the app restarts — this line is never reached
     } catch (err) {
-      onToast(`${t.updateFailed}: ${String(err)}`, true);
+      onToast(`${t.updateFailed}: ${errText(err)}`, true);
       setBusy(false);
     }
   };
 
-  const date = info.date ? new Date(info.date) : null;
+  const date = parseUpdateDate(info.date);
 
   return (
     <div className="overlay" onClick={busy ? undefined : onClose}>
@@ -37,7 +39,7 @@ export default function UpdateModal({ info, onToast, onClose }: Props) {
           </button>
         </div>
         <div className="mbody">
-          {date && !Number.isNaN(date.getTime()) && (
+          {date && (
             <div className="faint">{t.publishedOn(date.toLocaleDateString())}</div>
           )}
           <div className="fieldlabel">{t.changelogTitle}</div>

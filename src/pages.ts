@@ -112,7 +112,7 @@ export async function organizePages(sources: Uint8Array[], slots: OrganizeSlot[]
     }
     finalPages.push(page);
   }
-  if (finalPages.length === 0) throw new Error('a document needs at least one page');
+  if (finalPages.length === 0) throw new Error('pages.empty');
 
   // widgets of deleted pages → their fields go too
   const keptRefs = new Set(finalPages.map((p) => p.ref.toString()));

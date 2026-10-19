@@ -164,6 +164,26 @@ export async function test_organize_pages_keeps_forms_and_drops_deleted() {
   assert.equal(fields[0].defaultValue, 'bleibt');
 }
 
+/** "Export selection" (PagesPanel) builds the excerpt with organizePages
+ *  on the chosen slots only: the form field on the exported page keeps
+ *  working, the other pages' text is not in the file. */
+export async function test_export_selection_keeps_form_and_drops_other_pages() {
+  let base = await makePdf(['EXP-P1-SECRET', 'EXP-P2-KEEP', 'EXP-P3-SECRET']);
+  base = await addFormField(base, { pageIndex: 1, xPct: 0.1, yPct: 0.1, wPct: 0.5, hPct: 0.1 },
+    { kind: 'text', name: 'kunde', options: [], defaultValue: 'Müller' });
+  base = await addFormField(base, { pageIndex: 0, xPct: 0.1, yPct: 0.1, wPct: 0.5, hPct: 0.1 },
+    { kind: 'text', name: 'intern', options: [], defaultValue: 'geheim' });
+  const out = await organizePages([base], [
+    { kind: 'page', sourceIndex: 0, sourcePageIndex: 1, rotation: 0, width: 0, height: 0 },
+  ]);
+  assert.deepEqual(await pageTexts(out), ['EXP-P2-KEEP']);
+  assert.equal(fileContains(out, 'EXP-P1-SECRET'), false, 'page 1 content leaked into the excerpt');
+  assert.equal(fileContains(out, 'EXP-P3-SECRET'), false, 'page 3 content leaked into the excerpt');
+  const fields = await listFormFields(out);
+  assert.deepEqual(fields.map((f) => f.name), ['kunde']);
+  assert.equal(fields[0].defaultValue, 'Müller');
+}
+
 // ------------------------------------------------------------ form fields
 
 export async function test_form_fields_lifecycle() {

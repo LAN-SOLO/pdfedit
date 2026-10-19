@@ -41,4 +41,12 @@ pnpm test              # Kern-Tests Frontend (pdf-lib-Logik, Signatur, Schwärze
 # Browser-E2E (Canvas: Schwärzen, Komprimieren, OCR, JPEG 2000, UI):
 pnpm exec vite --port 1437 --strictPort &
 CHROME=/pfad/zu/chrome node scripts/e2e-browser.mjs
+# UI-Abläufe mit gemockter Tauri-IPC (DE/EN, Hell/Dunkel, 860×560):
+node scripts/ui-flows.mjs /pfad/zu/chrome http://127.0.0.1:1437 /tmp/pdfedit-shots
 ```
+
+Fehler aus Rust kommen als stabile Codes (`io.locked`, `pdf.write_denied` …)
+über die IPC-Grenze und werden in `src/errors.ts` übersetzt — neue Codes
+immer in `i18n.ts` (DE und EN) ergänzen, `tests/i18n.test.ts` prüft das.
+`read_pdf`/`write_pdf` arbeiten nur mit Pfaden aus Dialog, Drag & Drop oder
+Speichern; die Webview darf nicht aus der App-URL wegnavigieren.

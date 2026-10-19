@@ -11,6 +11,7 @@ import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'pdfjs-dist/web/pdf_viewer.css';
 import { PDFDocument as PdfLibDocument } from 'pdf-lib';
 import { t } from '../i18n';
+import { errText } from '../errors';
 import PagesPanel from './PagesPanel';
 import StampDialog from './StampDialog';
 import CompressDialog from './CompressDialog';
@@ -47,7 +48,7 @@ import {
   type FreetextEntry,
   type FreetextFontChoice,
 } from '../freetextFont';
-import { api, isTauri, type SystemFont } from '../api';
+import { api, askConfirm, isTauri, type SystemFont } from '../api';
 import TextEditDialog, { type TextEditSpec } from './TextEditDialog';
 import { applyRunEdit } from '../textEdit';
 import { matchFont, parsePdfFontName, type FontMatch } from '../fontMatch';
@@ -271,6 +272,9 @@ export interface PdfViewerHandle {
    *  used to preserve work when the tab is hidden (switched away from).
    *  Returns null when there is nothing unsaved to preserve. */
   checkpoint: () => Promise<Uint8Array | null>;
+  /** True while a long task (save, OCR, compress, redact, sign, …) runs —
+   *  quitting then would lose its result. */
+  isBusy: () => boolean;
 }
 
 /** One PDF document, rendered via pdf.js's own PDFViewer widget — the same
@@ -495,7 +499,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           .catch(() => {});
       })
       .catch((err: unknown) => {
-        if (!destroyed) setError(String((err as Error)?.message ?? err));
+        if (!destroyed) setError(errText(err));
       });
 
     return () => {
@@ -738,7 +742,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       try {
         await ensureFontFace(choice);
       } catch (err) {
-        onError(`${t.fontLoadError}: ${String(err)}`);
+        onError(`${t.fontLoadError}: ${errText(err)}`);
         return;
       }
     }
@@ -834,7 +838,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     try {
       return await applyFreetextFonts(bytes, apps);
     } catch (err) {
-      onError(`${t.fontLoadError}: ${String(err)}`);
+      onError(`${t.fontLoadError}: ${errText(err)}`);
       return bytes;
     }
   }, [recordFreetextEditors, onError]);
@@ -852,12 +856,29 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       // best-effort — losing the in-memory checkpoint beats crashing the tab
       // switch, but surface it: the user's edits since the last real Save
       // are about to become unrecoverable once this tab unmounts.
-      onError(`${t.saveError}: ${String(err)}`);
+      onError(`${t.saveError}: ${errText(err)}`);
       return null;
     }
   }, [onError, commitPendingEdits, saveWithFonts]);
 
-  useImperativeHandle(ref, () => ({ checkpoint: doCheckpoint }), [doCheckpoint]);
+  const compressingRef = useRef(false);
+  const busyRef = useRef(false);
+  busyRef.current =
+    saving ||
+    flattening ||
+    redactBusy ||
+    !!ocrProgress ||
+    regionEditBusy ||
+    fieldBusy ||
+    signBusy ||
+    protectBusy ||
+    lineEditBusy ||
+    wmBusy;
+  useImperativeHandle(
+    ref,
+    () => ({ checkpoint: doCheckpoint, isBusy: () => busyRef.current || compressingRef.current }),
+    [doCheckpoint]
+  );
 
   // The drag-capture modes (redact, region edit, field placement, signature
   // placement) all grab pointer events on the pages — only ever one at a time.
@@ -951,7 +972,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(false);
       onSave(bytes);
     } catch (err) {
-      onError(`${t.saveError}: ${String(err)}`);
+      onError(`${t.saveError}: ${errText(err)}`);
     } finally {
       setSaving(false);
     }
@@ -971,7 +992,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(flat);
     } catch (err) {
-      onError(`${t.flattenError}: ${String(err)}`);
+      onError(`${t.flattenError}: ${errText(err)}`);
     } finally {
       setFlattening(false);
     }
@@ -980,6 +1001,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   const doCompress = async (preset: CompressPreset): Promise<{ before: number; after: number } | null> => {
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer?.pdfDocument) return null;
+    compressingRef.current = true;
     try {
       await commitPendingEdits();
       const bytes = await saveWithFonts();
@@ -990,8 +1012,10 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onReplace(compressed);
       return { before: bytes.length, after: compressed.length };
     } catch (err) {
-      onError(`${t.compressError}: ${String(err)}`);
+      onError(`${t.compressError}: ${errText(err)}`);
       return null;
+    } finally {
+      compressingRef.current = false;
     }
   };
 
@@ -1016,7 +1040,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(redacted);
     } catch (err) {
-      onError(`${t.redactError}: ${String(err)}`);
+      onError(`${t.redactError}: ${errText(err)}`);
     } finally {
       setRedactBusy(false);
     }
@@ -1036,7 +1060,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(edited);
     } catch (err) {
-      onError(`${t.editRegionError}: ${String(err)}`);
+      onError(`${t.editRegionError}: ${errText(err)}`);
     } finally {
       setRegionEditBusy(false);
     }
@@ -1061,7 +1085,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       setOcrResult({ pagesOcred, wordsFound });
     } catch (err) {
       setOcrProgress(null);
-      onError(`${t.ocrError}: ${String(err)}`);
+      onError(`${t.ocrError}: ${errText(err)}`);
     }
   };
 
@@ -1096,7 +1120,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       if (err instanceof FieldNameTakenError) {
         onError(t.formFieldNameTaken); // dialog stays open for a rename
       } else {
-        onError(`${t.formFieldError}: ${String(err)}`);
+        onError(`${t.formFieldError}: ${errText(err)}`);
       }
     } finally {
       setFieldBusy(false);
@@ -1115,6 +1139,8 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         p12Password: req.p12Password,
         reason: req.reason,
         region,
+        stampLabel: t.signStampLabel,
+        unknownSigner: t.signUnknownSigner,
       });
       setShowSign(false);
       // Write the signed bytes to disk EXACTLY as produced — any later
@@ -1126,7 +1152,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onSave(signed);
       onNotice(t.signDone);
     } catch (err) {
-      onError(`${t.signError}: ${String(err)}`);
+      onError(`${t.signError}: ${errText(err)}`);
     } finally {
       setSignBusy(false);
     }
@@ -1160,7 +1186,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       setShowProtect(false);
       onNotice(t.protectApplied);
     } catch (err) {
-      onError(`${t.protectError}: ${String(err)}`);
+      onError(`${t.protectError}: ${errText(err)}`);
     } finally {
       setProtectBusy(false);
     }
@@ -1178,7 +1204,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       setShowProtect(false);
       onNotice(t.protectRemoved);
     } catch (err) {
-      onError(`${t.protectError}: ${String(err)}`);
+      onError(`${t.protectError}: ${errText(err)}`);
     } finally {
       setProtectBusy(false);
     }
@@ -1440,13 +1466,13 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       e.preventDefault();
       e.stopPropagation();
       void handleClick(e).catch((err) => {
-        // WebKit stacks carry no message line — prepend String(err) so the
+        // WebKit stacks carry no message line — prepend errText(err) so the
         // toast names the error AND the top stack frame
         const top = String((err as Error)?.stack ?? '')
           .split('\n')
           .slice(0, 1)
           .join(' ');
-        onError(`${t.textEditError}: ${String(err)} ${top}`.slice(0, 260));
+        onError(`${t.textEditError}: ${errText(err)} ${top}`.slice(0, 260));
       });
     };
 
@@ -1541,7 +1567,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(edited);
     } catch (err) {
-      onError(`${t.textEditError}: ${String(err)}`);
+      onError(`${t.textEditError}: ${errText(err)}`);
     } finally {
       setLineEditBusy(false);
     }
@@ -1560,7 +1586,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(moved);
     } catch (err) {
-      onError(`${t.pageMoveError}: ${String(err)}`);
+      onError(`${t.pageMoveError}: ${errText(err)}`);
     }
   };
 
@@ -1653,9 +1679,39 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     }, 150);
   };
 
+  // Web links inside a PDF must not navigate the app's own window (Rust
+  // blocks that as well, see nav_guard in main.rs) — and there is no
+  // browser to hand them to. Copy the address and say so instead.
+  // Internal links (#page=…, named destinations) stay with pdf.js.
+  const onLinkClickCapture = (e: React.MouseEvent) => {
+    const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+    if (!a) return;
+    const href = a.getAttribute('href') ?? '';
+    if (href.startsWith('#')) return;
+    let url: URL | null = null;
+    try {
+      url = new URL(a.href, window.location.href);
+    } catch {
+      url = null;
+    }
+    if (url && url.origin === window.location.origin && url.pathname === window.location.pathname) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!url) return;
+    const shown = url.href.length > 120 ? `${url.href.slice(0, 117)}…` : url.href;
+    const copy = navigator.clipboard?.writeText(url.href) ?? Promise.reject(new Error('no clipboard'));
+    copy.then(
+      () => onNotice(t.linkCopied(shown)),
+      () => onNotice(t.linkBlocked(shown))
+    );
+  };
+
   const doDeleteField = async (name: string) => {
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer?.pdfDocument) return;
+    // removing a field rewrites the document — pdf.js undo can't bring it
+    // back, so ask first (native dialog in Tauri, see askConfirm)
+    if (!(await askConfirm(t.deleteFieldConfirm(name), t.deleteFieldOk, t.cancel))) return;
     try {
       await commitPendingEdits();
       const bytes = await saveWithFonts();
@@ -1664,7 +1720,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onDirtyChange(true);
       onReplace(out);
     } catch (err) {
-      onError(`${t.formFieldError}: ${String(err)}`);
+      onError(`${t.formFieldError}: ${errText(err)}`);
     }
   };
 
@@ -1683,7 +1739,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onReplace(out);
     } catch (err) {
       if (err instanceof FieldNameTakenError) onError(t.formFieldNameTaken);
-      else onError(`${t.formFieldError}: ${String(err)}`);
+      else onError(`${t.formFieldError}: ${errText(err)}`);
     } finally {
       setFieldBusy(false);
     }
@@ -1699,7 +1755,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       const bytes = await saveWithFonts();
       setWmReport(await readWatermarks(bytes));
     } catch (err) {
-      onError(`${t.wmError}: ${String(err)}`);
+      onError(`${t.wmError}: ${errText(err)}`);
     }
   };
 
@@ -1721,7 +1777,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       onReplace(marked);
       onNotice(t.wmApplied);
     } catch (err) {
-      onError(`${t.wmError}: ${String(err)}`);
+      onError(`${t.wmError}: ${errText(err)}`);
     } finally {
       setWmBusy(false);
     }
@@ -1756,7 +1812,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
         onDirtyChange(true);
       }
     } catch (err) {
-      onError(`${t.stampError}: ${String(err)}`);
+      onError(`${t.stampError}: ${errText(err)}`);
     }
   };
 
@@ -1799,11 +1855,11 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           <IconSearch size={16} />
         </button>
         <div className="segmented">
-          <button onClick={() => zoom(-1)} aria-label="zoom out" title={t.zoomOut}>
+          <button onClick={() => zoom(-1)} aria-label={t.zoomOut} title={t.zoomOut}>
             <IconZoomOut size={15} />
           </button>
           <span className="zoomlevel">{scalePct}%</span>
-          <button onClick={() => zoom(1)} aria-label="zoom in" title={t.zoomIn}>
+          <button onClick={() => zoom(1)} aria-label={t.zoomIn} title={t.zoomIn}>
             <IconZoomIn size={15} />
           </button>
         </div>
@@ -2162,7 +2218,12 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           />
         )}
         <div className="pdfjs-outer">
-          <div className="pdfjs-container" ref={containerRef}>
+          <div
+            className="pdfjs-container"
+            ref={containerRef}
+            onClickCapture={onLinkClickCapture}
+            onAuxClickCapture={onLinkClickCapture}
+          >
             <div className="pdfViewer" ref={viewerElRef} />
           </div>
           {error && <div className="load-error">{`${t.loadError}: ${error}`}</div>}
@@ -2180,6 +2241,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           }}
           onClose={() => setShowPages(false)}
           onError={onError}
+          onNotice={onNotice}
         />
       )}
 

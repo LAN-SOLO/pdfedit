@@ -130,9 +130,11 @@ Geprüft ohne Befund:
 - **Berechtigungs-only-PDFs**: Einschränkungen entfallen beim Speichern
   (Owner-Passwort unbekannt); Hinweis beim Öffnen.
 - **Komprimieren** kodiert nur RGB-/Graustufen-JPEGs neu.
-- **Seiten exportieren** erzeugt ein neues Dokument (ohne Formular-Katalog).
+- ~~**Seiten exportieren** erzeugt ein neues Dokument (ohne Formular-Katalog).~~
+  Runde 2: behoben (Export nutzt denselben Weg wie „Anwenden“, siehe Abschnitt 9).
 - **OCR**: Deutsch und Englisch.
-- Update-Fehlermeldungen aus Rust sind deutsch, auch in der englischen UI.
+- ~~Update-Fehlermeldungen aus Rust sind deutsch, auch in der englischen UI.~~
+  Runde 2: behoben (Fehlercodes, Übersetzung im Frontend, siehe Abschnitt 9).
 
 ## 6. Windows-spezifische Prüfung (statisch)
 
@@ -270,3 +272,112 @@ ausgeführt; danach drei echte Fehler behoben (Commit nach `f1bf2e7`).
   Windows.
 - Seiten löschen in einem PDF mit Inhaltsverzeichnis-Lesezeichen → Lesezeichen
   der gelöschten Seite tut nichts, Rest funktioniert.
+
+## 9. Runde 2 (2026-10-20)
+
+Basis: `f487365`. Ziel: jede Funktion fehlerfrei auf macOS und Windows,
+Muster L1–L13 aus den anderen Apps gegen pdfedit geprüft und behoben.
+
+**Testläufe**
+
+| Befehl | Ergebnis |
+|---|---|
+| `cargo test --workspace` | 16 bestanden (neu: Fehlercodes, Retry, lange Namen, parallele Saves, Lese-Allow-Liste, Navigations-Sperre, Windows-Gerätenamen) |
+| `cargo check --target x86_64-pc-windows-msvc --workspace --tests` (vom Mac, ohne Linken) | fehlerfrei, ebenso `cargo clippy` für Windows |
+| `pnpm test` | 20 bestanden (neu: `tests/i18n.test.ts` — DE/EN-Parität, alle Backend-Codes übersetzt, Update-Datum, lokales Signaturdatum; Seiten-Export mit Formular) |
+| `pnpm build` (tsc + vite) | fehlerfrei |
+| `scripts/e2e-browser.mjs` (Chromium) | 6 bestanden |
+| `scripts/ui-flows.mjs` (Chromium, gemockte Tauri-IPC inkl. Dialog-Plugin-2.7-Stubs für `window.confirm/alert/prompt`) | 92 bestanden — DE+EN × Dunkel+Hell bei 860×560 (Mindestgröße) |
+| `cargo audit` | `rustls` 0.23.43 → 0.23.46 aktualisiert (4 Advisories); offen: `zip` 4.6.1 im Updater-Plugin (s. u.) |
+
+**Behoben**
+
+- **L2 Backend-Fehler übersetzt**: Rust liefert stabile Codes (`pdf.*`,
+  `io.locked|denied|not_found|full|other`, `font.denied`, `update.*`),
+  `src/errors.ts` macht daraus DE/EN-Text; OS-Text nur noch als Detail bei
+  `io.other`/`update.*`. Auch Frontend-Fehler (`pages.empty`, `sign.no_key`)
+  und der sichtbare Signaturstempel („Digital signiert“/„Digitally signed“,
+  „Unbekannt“/„Unknown“) folgen der UI-Sprache.
+- **Sicherheit (Runde-1-Rest)**: `read_pdf` liest nur noch Dateien, die im
+  Dialog gewählt, gespeichert oder per Drag & Drop abgelegt wurden — die
+  Drop-Pfade registriert Rust selbst im Fenster-Event, nicht das Frontend.
+  Eine kompromittierte Webview kann damit keine beliebigen PDFs mehr lesen
+  oder überschreiben.
+- **Speichern-Dialog ohne `.pdf`**: hängt pdfedit die Endung an und gibt es
+  die Datei schon, fragt ein nativer Dialog (Ersetzen/Abbrechen, UI-Sprache).
+- **L5 Windows-Dateisystem**: atomares Umbenennen wiederholt bei
+  Sharing-/Lock-Verletzung und kurzzeitigem Zugriff-verweigert (AV-Scanner,
+  OneDrive) rund 2 s; Lesen ebenso bei Sperre. Temp-Name gekürzt (lange
+  Dateinamen sprengten das 255-Zeichen-Limit) und mit Laufnummer (zwei
+  gleichzeitige Saves teilten sich eine Temp-Datei). Reservierte
+  Gerätenamen (`CON`, `NUL`, `COM1` …, Punkt/Leerzeichen am Ende) lehnt das
+  Backend unter Windows ab (`pdf.bad_name`).
+- **L7 Links in PDFs**: Ein Klick auf einen Web-/Mail-Link ersetzte bisher
+  die App-Seite in der Webview (Tauri erlaubt Navigation standardmäßig) —
+  Editor und ungespeicherte Tabs waren ohne Rückfrage weg. Jetzt: Klick
+  kopiert die Adresse und zeigt einen Hinweis; zusätzlich blockiert ein
+  Navigations-Wächter in Rust jede Navigation außerhalb der App-URL.
+  Interne Links (Seitenziele) funktionieren weiter.
+- **L8**: PDF lesen/schreiben (inkl. Base64-Dekodierung), Schriftliste und
+  Schriftlesen laufen im Blocking-Pool statt auf den Async-Workern.
+- **L9/L11 Beenden während einer Aufgabe**: Läuft ein Speichervorgang, OCR,
+  Komprimieren, Schwärzen, Signieren o. Ä., fragt das Schließen des Fensters
+  erst („Trotzdem beenden“/„Abbrechen“), dann wie bisher nach
+  ungespeicherten Änderungen. Der Close-Listener wurde bei frühem Aufräumen
+  (React StrictMode) doppelt registriert → Frage kam zweimal; behoben.
+- **L11 Formularfeld löschen** (× im Objekte-Panel) fragt jetzt nativ nach —
+  das Löschen schreibt das Dokument neu und ist nicht rückgängig zu machen.
+- **L10 Datum**: Der sichtbare Signaturstempel und das Zertifikats-Ablaufdatum
+  zeigen den lokalen Kalendertag (vorher UTC: kurz nach Mitternacht der
+  Vortag). Das Veröffentlichungsdatum im Update-Dialog wurde nie angezeigt
+  (`time`-Format aus Rust ist kein gültiges JS-Datum) → `src/updateDate.ts`.
+- **L12**: Seitenkarten-Knöpfe (↑ ↓ ⟳ ×) und Zoom-Knöpfe hatten englische
+  `aria-label`s ohne Tooltip → übersetzt, mit Tooltip. „Auswahl exportieren“
+  meldet jetzt den gespeicherten Dateinamen. Hilfe startet in der UI-Sprache
+  (gemeinsame Regel `uiLang`).
+- **Seiten exportieren** baut den Auszug jetzt mit `organizePages` auf den
+  gewählten Seiten: Formularfelder dieser Seiten bleiben ausfüllbar, Inhalte
+  der anderen Seiten sind nicht in der Datei (Test).
+
+**Geprüft ohne Befund**
+
+- L1: kein `window.confirm/alert/prompt` im Tauri-Pfad (`askConfirm` →
+  `confirm_dialog`); der UI-Lauf ersetzt sie wie das Plugin durch Stubs und
+  prüft, dass sie nie aufgerufen werden.
+- L3: UI-Sprache aus `navigator.language` (WKWebView/WebView2 liefern die
+  Systemsprache auch ohne `LANG`). L4: kein CSV/JSON-Import/-Export.
+  L6: keine Tastenkürzel-Beschriftungen in der UI.
+- L13: Updater-Endpoint `releases/latest/download/latest.json`, Pubkey
+  gesetzt, Versionsvergleich semver durch das Plugin (1.0.0), Fehler in
+  UI-Sprache (UI-Lauf: Installationsfehler übersetzt).
+
+**Offen**
+
+- `zip` 4.6.1 (RUSTSEC-2026-0367/-0368/-0369) kommt über
+  `tauri-plugin-updater` 2.10.1; Fix erst in `zip` 9. Betrifft das Entpacken
+  von Archiven — der Updater entpackt nur signaturgeprüfte Update-Archive
+  von GitHub. Ein Updater-Plugin-Update vor 1.0 ungetestet einzuspielen
+  wäre riskanter; nach 1.0 angehen.
+- `node-forge` GHSA-86w9-cpqp-85rv weiter ohne gepatchte Version (npm: 1.4.0);
+  pdfedit prüft keine Signaturen mit forge.
+- Komprimieren und Schwärzen laufen im Webview-Hauptthread (pdf-lib/Canvas);
+  bei sehr großen PDFs kann das Fenster währenddessen kurz träge reagieren
+  (nicht gemessen). Ein Umbau auf Worker ist nach 1.0 geplant.
+- Kein ESLint im Repo (bräuchte neue Abhängigkeiten).
+
+**Nur auf echter Hardware prüfbar (zusätzlich zu Abschnitt 7)**
+
+- Link in einem PDF anklicken (macOS und Windows): App bleibt, Hinweis
+  „Adresse kopiert“, Adresse liegt in der Zwischenablage (WKWebView/WebView2
+  erlauben `clipboard.writeText` im Klick; headless Chromium lehnte ab →
+  Hinweis ohne „kopiert“).
+- Speichern-Dialog unter Windows: Name ohne `.pdf` eintippen, den es als
+  `.pdf` schon gibt → Rückfrage „Ersetzen?“; Abbrechen speichert nicht.
+- Windows: Datei in Acrobat geöffnet → speichern → Meldung „in einem anderen
+  Programm geöffnet“ (nach ~2 s), Original unverändert, keine `.tmp`-Datei.
+- Drag & Drop aus Finder/Explorer öffnet weiterhin (Rust-Registrierung im
+  Drop-Event); „PDF anhängen“ im Seiten-Dialog.
+- Fenster schließen während OCR/Komprimieren → Rückfrage „Trotzdem beenden“.
+- Objekte-Panel: Formularfeld × → native Rückfrage, Abbrechen behält das Feld.
+- Update-Dialog zeigt „Veröffentlicht am …“ mit Datum.
+

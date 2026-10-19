@@ -5,6 +5,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { api, askConfirm, isTauri, UpdateInfo } from './api';
 import { bytesToBase64, downloadBytes } from './bytes';
 import { t } from './i18n';
+import { errText } from './errors';
 import { applyTheme, loadTheme, type Theme } from './theme';
 import { IconMoon, IconSun } from './components/Icon';
 import UpdateModal from './components/UpdateModal';
@@ -58,6 +59,8 @@ export default function App() {
   // Only ONE PdfViewer is ever mounted at a time (see PdfViewer.tsx docstring
   // for why) — this ref always points at whichever one that currently is.
   const viewerRef = useRef<PdfViewerHandle>(null);
+  // number of saves currently writing to disk (see the close guard)
+  const savingRef = useRef(0);
 
   const toast = useCallback((msg: string, isError = false) => {
     setToastMsg({ msg, err: isError });
@@ -107,8 +110,17 @@ export default function App() {
   useEffect(() => {
     if (!isTauri) return;
     let unlisten: (() => void) | undefined;
+    let disposed = false;
     getCurrentWindow()
       .onCloseRequested(async (event) => {
+        // a save still writing or a long task (OCR, compress, …) still
+        // running would be cut off — ask first, separately from "unsaved"
+        if (savingRef.current > 0 || viewerRef.current?.isBusy()) {
+          if (!(await askConfirm(t.busyQuitConfirm, t.quitAnyway, t.cancel))) {
+            event.preventDefault();
+            return;
+          }
+        }
         if (docsRef.current.some((d) => d.dirty)) {
           if (!(await askConfirm(t.unsavedQuitConfirm, t.discardAndQuit, t.cancel))) {
             event.preventDefault();
@@ -116,9 +128,15 @@ export default function App() {
         }
       })
       .then((fn) => {
-        unlisten = fn;
+        // cleaned up before the listener was registered (StrictMode's
+        // double mount) — drop it at once, or the question comes twice
+        if (disposed) fn();
+        else unlisten = fn;
       });
-    return () => unlisten?.();
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
   }, []);
 
   // Switching away from the active tab unmounts its PdfViewer — checkpoint
@@ -200,7 +218,7 @@ export default function App() {
           setPwFailed(true);
         } else {
           setPendingProtected(null);
-          toast(`${t.loadError}: ${String(err)}`, true);
+          toast(`${t.loadError}: ${errText(err)}`, true);
         }
       }
     },
@@ -244,7 +262,7 @@ export default function App() {
         const name = path.split('/').pop()?.split('\\').pop() ?? 'PDF';
         await openBytes(name, new Uint8Array(buf), path);
       } catch (err) {
-        toast(`${t.loadError}: ${String(err)}`, true);
+        toast(`${t.loadError}: ${errText(err)}`, true);
       }
     },
     [openBytes, toast]
@@ -274,7 +292,7 @@ export default function App() {
       const path = await api.pickPdf();
       if (path) await openPath(path);
     } catch (err) {
-      toast(String(err), true);
+      toast(errText(err), true);
     }
   }, [openPath, toast]);
 
@@ -299,6 +317,7 @@ export default function App() {
     async (id: number, bytes: Uint8Array, protectionOverride?: Protection | null) => {
       const doc = docsRef.current.find((d) => d.id === id);
       if (!doc) return;
+      savingRef.current++;
       try {
         const protection = protectionOverride !== undefined ? protectionOverride : doc.protection;
         // encrypt only what goes to disk — the working copy stays plain
@@ -311,7 +330,9 @@ export default function App() {
         setDocs((d) => d.map((x) => (x.id === id ? { ...x, data: bytes, dirty: false } : x)));
         toast(t.saved);
       } catch (err) {
-        toast(`${t.saveError}: ${String(err)}`, true);
+        toast(`${t.saveError}: ${errText(err)}`, true);
+      } finally {
+        savingRef.current--;
       }
     },
     [toast]
@@ -343,7 +364,7 @@ export default function App() {
       setUpdate(u);
       if (u) setShowUpdateModal(true);
     } catch (err) {
-      toast(String(err), true);
+      toast(errText(err), true);
     } finally {
       setChecking(false);
     }

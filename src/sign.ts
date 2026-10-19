@@ -63,7 +63,7 @@ function parseP12(p12Bytes: Uint8Array, password: string): ParsedP12 {
   }
   const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag] ?? [];
   const certs = certBags.map((b) => b.cert).filter((c): c is forge.pki.Certificate => !!c);
-  if (!key || certs.length === 0) throw new Error('no key or certificate in PKCS#12 file');
+  if (!key || certs.length === 0) throw new Error('sign.no_key');
   // the signer certificate is the one matching the private key's modulus
   let signerCert = certs[0];
   for (const c of certs) {
@@ -86,7 +86,7 @@ export function readP12(p12Bytes: Uint8Array, password: string): CertInfo {
   const { signerCert } = parseP12(p12Bytes, password);
   const issuerCn = signerCert.issuer.attributes.find((a) => a.shortName === 'CN');
   return {
-    commonName: certAttr(signerCert, 'CN') ?? certAttr(signerCert, 'E') ?? 'Unbekannt',
+    commonName: certAttr(signerCert, 'CN') ?? certAttr(signerCert, 'E') ?? '',
     organization: certAttr(signerCert, 'O'),
     issuerCommonName: typeof issuerCn?.value === 'string' ? issuerCn.value : null,
     validTo: signerCert.validity?.notAfter ?? null,
@@ -108,11 +108,20 @@ const apEscape = (s: string): string =>
     })
     .join('');
 
+/** Calendar date in the signer's LOCAL time zone (YYYY-MM-DD) — the
+ *  visible stamp must not show yesterday's date when signing shortly
+ *  after midnight (toISOString() is UTC). */
+export function localDateStamp(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 async function addPlaceholder(
   bytes: Uint8Array,
   signerName: string,
   reason: string,
-  region: SignRegion | null
+  region: SignRegion | null,
+  stampLabel: string
 ): Promise<Uint8Array> {
   const doc = await PDFDocument.load(bytes);
   const ctx = doc.context;
@@ -152,7 +161,7 @@ async function addPlaceholder(
   if (visible && rect) {
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const fontSize = Math.max(6, Math.min(11, rect.height / 4.2));
-    const lines = [signerName, 'Digital signiert', new Date().toISOString().slice(0, 10)];
+    const lines = [signerName, stampLabel, localDateStamp()];
     const ops = [
       `q 0.92 0.95 1 rg 0 0 ${rect.width.toFixed(2)} ${rect.height.toFixed(2)} re f Q`,
       `q 0.23 0.51 0.96 RG 0.75 w 0.4 0.4 ${(rect.width - 0.8).toFixed(2)} ${(rect.height - 0.8).toFixed(2)} re S Q`,
@@ -226,13 +235,23 @@ export interface SignOptions {
   reason: string;
   /** null = invisible signature */
   region: SignRegion | null;
+  /** second line of the visible stamp, in the UI language */
+  stampLabel?: string;
+  /** signer name when the certificate carries neither CN nor e-mail */
+  unknownSigner?: string;
 }
 
 export async function signPdf(bytes: Uint8Array, opts: SignOptions): Promise<Uint8Array> {
   const { key, certs, signerCert } = parseP12(opts.p12Bytes, opts.p12Password);
-  const signerName = certAttr(signerCert, 'CN') ?? certAttr(signerCert, 'E') ?? 'Unbekannt';
+  const signerName = certAttr(signerCert, 'CN') ?? certAttr(signerCert, 'E') ?? opts.unknownSigner ?? 'Unknown';
 
-  const prepared = await addPlaceholder(bytes, signerName, opts.reason, opts.region);
+  const prepared = await addPlaceholder(
+    bytes,
+    signerName,
+    opts.reason,
+    opts.region,
+    opts.stampLabel ?? 'Digitally signed'
+  );
   const s = bytesToLatin1(prepared);
 
   const placeholder = '<' + '0'.repeat(CONTENTS_HEX_LEN) + '>';

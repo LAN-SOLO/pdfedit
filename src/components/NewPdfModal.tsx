@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { api, isTauri } from '../api';
 import { t } from '../i18n';
+import { errText } from '../errors';
 
 /** Classic page formats in PDF points (1 pt = 1/72 inch), portrait. */
 const FORMATS: Record<string, [number, number]> = {
@@ -53,7 +54,7 @@ export default function NewPdfModal({ onCreated, onError, onClose }: Props) {
       }
       onCreated({ name, data: await doc.save(), path });
     } catch (err) {
-      onError(`${t.createError}: ${String(err)}`);
+      onError(`${t.createError}: ${errText(err)}`);
     } finally {
       setBusy(false);
     }

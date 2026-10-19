@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { t } from './i18n';
 
 /** True when running inside the Tauri shell (false in plain-browser dev). */
 export const isTauri = '__TAURI_INTERNALS__' in window;
@@ -24,7 +25,15 @@ export interface SystemFont {
 export const api = {
   pickPdf: () => invoke<string | null>('pick_pdf'),
   readPdf: (path: string) => invoke<ArrayBuffer>('read_pdf', { path }),
-  pickSavePdf: (suggested: string) => invoke<string | null>('pick_save_pdf', { suggested }),
+  /** The labels are for the extra "replace?" question Rust asks when the
+   *  dialog returned a bare name and the appended `.pdf` file exists. */
+  pickSavePdf: (suggested: string) =>
+    invoke<string | null>('pick_save_pdf', {
+      suggested,
+      replaceMsg: t.replaceExisting,
+      replaceLabel: t.replace,
+      cancelLabel: t.cancel,
+    }),
   writePdf: (path: string, dataB64: string) => invoke<void>('write_pdf', { path, dataB64 }),
   confirmDialog: (message: string, okLabel: string, cancelLabel: string) =>
     invoke<boolean>('confirm_dialog', { message, okLabel, cancelLabel }),

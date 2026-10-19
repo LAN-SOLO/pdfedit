@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { dicts } from '../i18n';
+import { dicts, uiLang } from '../i18n';
 
 // Selbstständiges Hilfe-System: schwebender ?-Button, First-Run-Tutorial
 // und durchsuchbares Handbuch. Sprache folgt wie i18n.ts der Systemsprache.
@@ -147,6 +147,7 @@ const de: Content = {
         '• Seitenzahl — das Nummernfeld in der Werkzeugleiste springt direkt zu einer Seite: Nummer eintippen, Enter',
         '• Suche — Volltextsuche im Dokument mit Vor/Zurück durch die Treffer',
         '• Hell/Dunkel — der Knopf mit Sonne bzw. Mond unten rechts neben der Hilfe schaltet die Oberfläche um; die Wahl bleibt gespeichert. Die PDF-Seiten selbst bleiben unverändert',
+        '• Links — Verweise innerhalb des Dokuments springen zur Zielseite. pdfedit öffnet keine Webseiten: Ein Klick auf einen externen Link (Web, E-Mail) kopiert die Adresse in die Zwischenablage, ein Hinweis zeigt sie an',
       ],
     },
     {
@@ -169,7 +170,7 @@ const de: Content = {
       body: [
         'Die Seitenleiste hat zwei Tabs: „Seiten" und „Objekte". Der Objekte-Tab listet alles, was du der Datei hinzugefügt hast:',
         '• Anmerkungen dieser Sitzung (Text, Zeichnungen, Markierungen, Stempel) — anklicken wählt das Objekt auf der Seite aus (mit Greifpunkten zum Verschieben/Skalieren), × löscht es',
-        '• Formularfelder des Dokuments — anklicken öffnet „Formularfeld bearbeiten" (Typ, Name, Optionen, Vorbelegung ändern), × löscht das Feld',
+        '• Formularfelder des Dokuments — anklicken öffnet „Formularfeld bearbeiten" (Typ, Name, Optionen, Vorbelegung ändern), × löscht das Feld nach einer Rückfrage (das lässt sich nicht rückgängig machen, nur durch Schließen ohne Speichern)',
         'Ehrlich benannt: Anmerkungen aus früheren Sitzungen sind fest gespeichert und erscheinen nicht mehr als Objekte; Photoshop-artige Gruppen und Ebenen-Reihenfolge stehen auf der Roadmap.',
       ],
     },
@@ -317,7 +318,10 @@ const de: Content = {
       body: [
         '„Speichern“ schreibt das Dokument mit allen angewandten Änderungen.',
         'Tabs mit ungespeicherten Änderungen sind markiert; beim Schließen eines Tabs oder der App fragt pdfedit nach.',
-        'Gespeichert wird absturzsicher: erst in eine temporäre Datei, dann wird das Original ersetzt — ein Absturz oder voller Datenträger hinterlässt kein halbes PDF. pdfedit schreibt nur in Dateien, die du in dieser Sitzung geöffnet oder im Speichern-Dialog gewählt hast.',
+        'Gespeichert wird absturzsicher: erst in eine temporäre Datei, dann wird das Original ersetzt — ein Absturz oder voller Datenträger hinterlässt kein halbes PDF. pdfedit liest nur Dateien, die du in dieser Sitzung geöffnet hast (Dialog oder Drag & Drop), und schreibt nur in solche oder in die im Speichern-Dialog gewählte.',
+        'Hält ein Virenscanner oder OneDrive die Datei unter Windows gerade fest, versucht pdfedit es rund zwei Sekunden lang erneut. Ist sie in einem anderen Programm geöffnet (z. B. Acrobat), meldet pdfedit das klar — das Original bleibt unverändert.',
+        'Tippst du im Speichern-Dialog einen Namen ohne „.pdf“, hängt pdfedit die Endung an und fragt nach, falls es diese Datei schon gibt.',
+        'Läuft beim Beenden noch ein Speichervorgang oder eine längere Aufgabe (OCR, Komprimieren, Schwärzen …), fragt pdfedit vorher, statt sie abzubrechen.',
       ],
     },
     {
@@ -334,7 +338,7 @@ const de: Content = {
       title: 'Privatsphäre',
       body: [
         'Alles läuft lokal: Rendering, OCR, Komprimierung, Schwärzung — deine Dokumente verlassen den Rechner nicht.',
-        'Kein Konto, keine Telemetrie. Die einzige Netzwerkverbindung ist der Update-Check gegen GitHub.',
+        'Kein Konto, keine Telemetrie. Die einzige Netzwerkverbindung ist der Update-Check gegen GitHub — Links in PDFs öffnen keine Verbindung.',
       ],
     },
   ],
@@ -455,6 +459,7 @@ const en: Content = {
         '• Page number — the number field in the toolbar jumps straight to a page: type the number, press Enter',
         '• Search — full-text search with next/previous through the hits',
         '• Light/dark — the sun or moon button at the bottom right next to Help switches the interface; the choice is remembered. The PDF pages themselves stay unchanged',
+        '• Links — links within the document jump to their target page. pdfedit doesn\u2019t open web pages: clicking an external link (web, e-mail) copies the address to the clipboard and a notice shows it',
       ],
     },
     {
@@ -477,7 +482,7 @@ const en: Content = {
       body: [
         'The sidebar has two tabs: "Pages" and "Objects". The objects tab lists everything you added to the file:',
         '• This session\u2019s annotations (text, drawings, highlights, stamps) — clicking selects the object on the page (with handles for moving/resizing), × deletes it',
-        '• The document\u2019s form fields — clicking opens "Edit form field" (change type, name, options, default), × deletes the field',
+        '• The document\u2019s form fields — clicking opens "Edit form field" (change type, name, options, default), × deletes the field after a confirmation (this can\u2019t be undone, only by closing without saving)',
         'Honestly: annotations from earlier sessions are baked in and no longer appear as objects; Photoshop-style groups and layer ordering are on the roadmap.',
       ],
     },
@@ -625,7 +630,10 @@ const en: Content = {
       body: [
         '“Save” writes the document with all applied changes.',
         'Tabs with unsaved changes are marked; pdfedit asks before closing a tab or the app.',
-        'Saving is crash-safe: first to a temporary file, then the original is replaced — a crash or full disk never leaves a half-written PDF. pdfedit only writes to files you opened or chose in the save dialog during this session.',
+        'Saving is crash-safe: first to a temporary file, then the original is replaced — a crash or full disk never leaves a half-written PDF. pdfedit only reads files you opened in this session (dialog or drag & drop) and only writes to those or to the one chosen in the save dialog.',
+        'If a virus scanner or OneDrive briefly holds the file on Windows, pdfedit retries for about two seconds. If it is open in another program (e.g. Acrobat), pdfedit says so clearly — the original stays untouched.',
+        'If you type a name without “.pdf” in the save dialog, pdfedit appends the extension and asks first if that file already exists.',
+        'If a save or a longer task (OCR, compressing, redacting …) is still running when you quit, pdfedit asks first instead of cutting it off.',
       ],
     },
     {
@@ -642,7 +650,7 @@ const en: Content = {
       title: 'Privacy',
       body: [
         'Everything runs locally: rendering, OCR, compression, redaction — your documents never leave the machine.',
-        'No account, no telemetry. The only network connection is the update check against GitHub.',
+        'No account, no telemetry. The only network connection is the update check against GitHub — links in PDFs never open a connection.',
       ],
     },
   ],
@@ -671,9 +679,8 @@ export default function Help({
 }: HelpProps) {
   // Sprache der Hilfe: folgt der Systemsprache, lässt sich aber im Kopf der
   // Hilfe jederzeit zwischen DE und EN umschalten
-  const [helpLang, setHelpLang] = useState<'de' | 'en'>(() =>
-    navigator.language.toLowerCase().startsWith('de') ? 'de' : 'en'
-  );
+  // starts in the UI language (same rule as the rest of the app)
+  const [helpLang, setHelpLang] = useState<'de' | 'en'>(uiLang);
   const c = helpLang === 'de' ? de : en;
   const t = dicts[helpLang];
   const [mode, setMode] = useState<'closed' | 'tutorial' | 'manual'>(() =>

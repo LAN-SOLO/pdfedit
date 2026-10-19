@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFJS_DOC_OPTIONS } from '../pdfjsConfig';
-import { PDFDocument, degrees } from 'pdf-lib';
 import { api, isTauri } from '../api';
 import { bytesToBase64, downloadBytes } from '../bytes';
 import { t } from '../i18n';
+import { errText } from '../errors';
 import { organizePages } from '../pages';
 import { decryptPdf, isPasswordProtected } from '../protect';
 
@@ -41,12 +41,13 @@ interface Props {
   onApply: (bytes: Uint8Array) => void;
   onClose: () => void;
   onError: (msg: string) => void;
+  onNotice: (msg: string) => void;
 }
 
 const A4: [number, number] = [595.28, 841.89];
 let nextSlotId = 1;
 
-export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
+export default function PagesPanel({ data, onApply, onClose, onError, onNotice }: Props) {
   const [sources, setSources] = useState<SourceDoc[]>([]);
   const [slots, setSlots] = useState<PageSlot[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({}); // `${sourceIndex}:${pageIndex}` -> data URL
@@ -71,7 +72,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
         }));
         setSlots(initial);
       })
-      .catch((err) => onError(String(err)));
+      .catch((err) => onError(errText(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
@@ -174,7 +175,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
           }));
           setSlots((s) => [...s, ...added]);
         })
-        .catch((err) => onError(String(err)));
+        .catch((err) => onError(errText(err)));
     },
     [onError]
   );
@@ -194,7 +195,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
       }
       appendSourceBytes(buf);
     } catch (err) {
-      onError(String(err));
+      onError(errText(err));
     }
   }, [appendSourceBytes, onError]);
 
@@ -211,38 +212,6 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
     [appendSourceBytes, onError]
   );
 
-  // Build a pdf-lib document from a list of slots, copying pages from their
-  // (possibly several) source documents and applying rotation/blank pages.
-  const buildDocument = useCallback(
-    async (list: PageSlot[]): Promise<Uint8Array> => {
-      const out = await PDFDocument.create();
-      const libCache = new Map<number, PDFDocument>();
-      const getLib = async (sourceIndex: number) => {
-        let doc = libCache.get(sourceIndex);
-        if (!doc) {
-          doc = await PDFDocument.load(sources[sourceIndex].bytes);
-          libCache.set(sourceIndex, doc);
-        }
-        return doc;
-      };
-      for (const slot of list) {
-        if (slot.kind === 'blank') {
-          const [w, h] = slot.rotation % 180 === 0 ? [slot.width, slot.height] : [slot.height, slot.width];
-          out.addPage([w, h]);
-          continue;
-        }
-        const libDoc = await getLib(slot.sourceIndex);
-        const [copied] = await out.copyPages(libDoc, [slot.sourcePageIndex]);
-        out.addPage(copied);
-        if (slot.rotation) {
-          copied.setRotation(degrees((copied.getRotation().angle + slot.rotation) % 360));
-        }
-      }
-      return out.save();
-    },
-    [sources]
-  );
-
   const apply = useCallback(async () => {
     setBusy(t.pagesApplying);
     try {
@@ -254,7 +223,7 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
       onApply(bytes);
       onClose();
     } catch (err) {
-      onError(String(err));
+      onError(errText(err));
       setBusy(null);
     }
   }, [sources, slots, onApply, onClose, onError]);
@@ -264,21 +233,28 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
     if (chosen.length === 0) return;
     setBusy(t.pagesExporting);
     try {
-      const bytes = await buildDocument(chosen);
+      // same in-place path as "Apply", restricted to the chosen pages: form
+      // fields on them keep working, bookmarks/metadata stay, and the
+      // other pages' content is swept out of the file
+      const bytes = await organizePages(
+        sources.map((src) => src.bytes),
+        chosen
+      );
       if (isTauri) {
         const path = await api.pickSavePdf(t.pagesExportName);
         if (path) {
           await api.writePdf(path, bytesToBase64(bytes));
+          onNotice(t.pagesExported(path.split(/[\\/]/).pop() ?? path));
         }
       } else {
         downloadBytes(t.pagesExportName, bytes);
       }
     } catch (err) {
-      onError(String(err));
+      onError(errText(err));
     } finally {
       setBusy(null);
     }
-  }, [buildDocument, slots, onError]);
+  }, [sources, slots, onError, onNotice]);
 
   const selectedCount = slots.filter((s) => s.selected).length;
 
@@ -323,16 +299,16 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
                     <span className="pagecard-num">{i + 1}</span>
                   </div>
                   <div className="pagecard-actions">
-                    <button onClick={() => move(i, -1)} disabled={i === 0} aria-label="up">
+                    <button onClick={() => move(i, -1)} disabled={i === 0} aria-label={t.pageMoveUp} title={t.pageMoveUp}>
                       ↑
                     </button>
-                    <button onClick={() => move(i, 1)} disabled={i === slots.length - 1} aria-label="down">
+                    <button onClick={() => move(i, 1)} disabled={i === slots.length - 1} aria-label={t.pageMoveDown} title={t.pageMoveDown}>
                       ↓
                     </button>
-                    <button onClick={() => rotate(i)} aria-label="rotate">
+                    <button onClick={() => rotate(i)} aria-label={t.pageRotate} title={t.pageRotate}>
                       ⟳
                     </button>
-                    <button onClick={() => remove(i)} disabled={slots.length <= 1} aria-label="delete">
+                    <button onClick={() => remove(i)} disabled={slots.length <= 1} aria-label={t.pageDelete} title={t.pageDelete}>
                       ×
                     </button>
                   </div>
