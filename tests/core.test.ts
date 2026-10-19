@@ -19,7 +19,7 @@ import {
   looksEncrypted,
 } from '../src/protect';
 import { applyWatermark, readWatermarks, verifyAgainstPng } from '../src/watermark';
-import { movePage } from '../src/pages';
+import { movePage, organizePages } from '../src/pages';
 import {
   addFormField,
   FieldNameTakenError,
@@ -131,6 +131,36 @@ export async function test_move_page_keeps_fields() {
   assert.equal(await movePage(moved, 1, 1), moved);
   assert.equal(await movePage(moved, -1, 2), moved);
   assert.equal(await movePage(moved, 0, 99), moved);
+}
+
+export async function test_organize_pages_keeps_forms_and_drops_deleted() {
+  let base = await makePdf(['P1-TEXT', 'P2-DELETE-ME', 'P3-TEXT']);
+  base = await addFormField(base, { pageIndex: 2, xPct: 0.1, yPct: 0.1, wPct: 0.5, hPct: 0.1 },
+    { kind: 'text', name: 'auf_p3', options: [], defaultValue: 'bleibt' });
+  base = await addFormField(base, { pageIndex: 1, xPct: 0.1, yPct: 0.1, wPct: 0.5, hPct: 0.1 },
+    { kind: 'text', name: 'auf_p2', options: [], defaultValue: 'weg' });
+  // inherited rotation on the tree root must survive the flattening
+  const d = await PDFDocument.load(base);
+  d.catalog.lookup(PDFName.of('Pages'), PDFDict).set(PDFName.of('Rotate'), d.context.obj(180));
+  base = await d.save();
+  const other = await makePdf(['MERGED-1', 'MERGED-2']);
+
+  const out = await organizePages([base, other], [
+    { kind: 'page', sourceIndex: 0, sourcePageIndex: 2, rotation: 90, width: 0, height: 0 },
+    { kind: 'blank', sourceIndex: -1, sourcePageIndex: -1, rotation: 0, width: 100, height: 150 },
+    { kind: 'page', sourceIndex: 1, sourcePageIndex: 1, rotation: 0, width: 0, height: 0 },
+    { kind: 'page', sourceIndex: 0, sourcePageIndex: 0, rotation: 0, width: 0, height: 0 },
+  ]);
+  assert.deepEqual(await pageTexts(out), ['P3-TEXT', '', 'MERGED-2', 'P1-TEXT']);
+  assert.equal(fileContains(out, 'P2-DELETE-ME'), false, 'deleted page still in file');
+  assert.equal(fileContains(out, 'MERGED-1'), false, 'unused merge page copied');
+  const re = await PDFDocument.load(out);
+  assert.deepEqual(re.getPages().map((p) => p.getRotation().angle), [270, 0, 0, 180]);
+  assert.deepEqual([re.getPage(1).getWidth(), re.getPage(1).getHeight()], [100, 150]);
+  const fields = await listFormFields(out);
+  assert.deepEqual(fields.map((f) => f.name), ['auf_p3'], 'field of deleted page must go, others stay');
+  assert.equal(fields[0].pageIndex, 0);
+  assert.equal(fields[0].defaultValue, 'bleibt');
 }
 
 // ------------------------------------------------------------ form fields

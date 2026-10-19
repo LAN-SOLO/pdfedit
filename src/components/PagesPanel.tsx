@@ -5,6 +5,8 @@ import { PDFDocument, degrees } from 'pdf-lib';
 import { api, isTauri } from '../api';
 import { bytesToBase64, downloadBytes } from '../bytes';
 import { t } from '../i18n';
+import { organizePages } from '../pages';
+import { isPasswordProtected } from '../protect';
 
 interface SourceDoc {
   bytes: Uint8Array;
@@ -173,8 +175,12 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
     try {
       const path = await api.pickPdf();
       if (!path) return;
-      const buf = await api.readPdf(path);
-      appendSourceBytes(new Uint8Array(buf));
+      const buf = new Uint8Array(await api.readPdf(path));
+      if (await isPasswordProtected(buf)) {
+        onError(t.pagesMergeProtected);
+        return;
+      }
+      appendSourceBytes(buf);
     } catch (err) {
       onError(String(err));
     }
@@ -183,9 +189,14 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
   const onBrowserMergeFile = useCallback(
     async (file: File | undefined) => {
       if (!file) return;
-      appendSourceBytes(new Uint8Array(await file.arrayBuffer()));
+      const buf = new Uint8Array(await file.arrayBuffer());
+      if (await isPasswordProtected(buf)) {
+        onError(t.pagesMergeProtected);
+        return;
+      }
+      appendSourceBytes(buf);
     },
-    [appendSourceBytes]
+    [appendSourceBytes, onError]
   );
 
   // Build a pdf-lib document from a list of slots, copying pages from their
@@ -223,14 +234,18 @@ export default function PagesPanel({ data, onApply, onClose, onError }: Props) {
   const apply = useCallback(async () => {
     setBusy(t.pagesApplying);
     try {
-      const bytes = await buildDocument(slots);
+      // in place on the open document — keeps forms, bookmarks, metadata
+      const bytes = await organizePages(
+        sources.map((src) => src.bytes),
+        slots
+      );
       onApply(bytes);
       onClose();
     } catch (err) {
       onError(String(err));
       setBusy(null);
     }
-  }, [buildDocument, slots, onApply, onClose, onError]);
+  }, [sources, slots, onApply, onClose, onError]);
 
   const exportSelected = useCallback(async () => {
     const chosen = slots.filter((s) => s.selected);

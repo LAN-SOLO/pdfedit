@@ -40,6 +40,8 @@ const de = {
   pagesTitle: 'Seiten organisieren',
   pagesInsertBlank: 'Leere Seite',
   pagesMerge: 'PDF anhängen',
+  pagesMergeProtected:
+    'Dieses PDF ist passwortgeschützt — bitte zuerst in einem eigenen Tab öffnen, Schutz entfernen und speichern, dann anhängen.',
   pagesExportSelected: (n: number) =>
     n === 0 ? 'Auswahl exportieren' : n === 1 ? '1 Seite exportieren' : `${n} Seiten exportieren`,
   pagesExportName: 'Auszug.pdf',
@@ -387,6 +389,8 @@ const en: typeof de = {
   pagesTitle: 'Organize pages',
   pagesInsertBlank: 'Blank page',
   pagesMerge: 'Append PDF',
+  pagesMergeProtected:
+    'This PDF is password-protected — open it in its own tab first, remove the protection and save, then append it.',
   pagesExportSelected: (n: number) =>
     n === 0 ? 'Export selection' : n === 1 ? 'Export 1 page' : `Export ${n} pages`,
   pagesExportName: 'Extract.pdf',
