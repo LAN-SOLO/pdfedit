@@ -1,7 +1,7 @@
 /** Minimal UI strings (de/en) for the app shell — grows with the real UI. */
 const de = {
   subtitle: 'PDFs bearbeiten, bis ins kleinste Detail',
-  statusTitle: 'Beta',
+  statusTitle: 'Funktionsumfang',
   statusText:
     'pdfedit ändert bestehenden Text direkt auf der Seite, markiert, ' +
     'kommentiert und zeichnet mit wählbarer Farbe, Größe und Schrift ' +
@@ -352,7 +352,7 @@ const de = {
 
 const en: typeof de = {
   subtitle: 'Edit PDFs, down to the smallest detail',
-  statusTitle: 'Beta',
+  statusTitle: 'Features',
   statusText:
     'pdfedit edits existing text right on the page, highlights, annotates ' +
     'and draws with selectable color, size and font (system fonts too), ' +

@@ -234,6 +234,7 @@ const de: Content = {
         '• Passwort entfernen — speichert das Dokument unverschlüsselt',
         'Passwortgeschützte PDFs öffnet pdfedit nach der Passwort-Abfrage ganz normal; beim Speichern bleibt der Schutz mit dem bekannten Passwort erhalten, bis du ihn hier änderst.',
         'Zur Einordnung: Berechtigungen ohne Öffnen-Passwort sind eine Konventionsgrenze, die PDF-Programme respektieren — gegen das Öffnen schützt nur das Öffnen-Passwort selbst.',
+        'PDFs, die nur Berechtigungen haben (kein Öffnen-Passwort), öffnet pdfedit direkt ohne Abfrage. Diese Einschränkungen entfallen beim Speichern — bei Bedarf hier neu setzen.',
       ],
     },
     {
@@ -246,6 +247,7 @@ const de: Content = {
         '• Zusammenführen — ein weiteres PDF ans Dokument anhängen',
         '• Ausgewählte Seiten exportieren — als neues, eigenes PDF speichern',
         'Wichtig: Erst „Anwenden“ schreibt die Änderungen ins Dokument; bis dahin ist alles unverbindlich.',
+        'Formularfelder, Lesezeichen und Metadaten bleiben beim Anwenden erhalten. Gelöschte Seiten verschwinden vollständig aus der Datei — samt ihrer Formularfelder. Passwortgeschützte PDFs vor dem Anhängen in einem eigenen Tab entschützen.',
       ],
     },
     {
@@ -267,17 +269,18 @@ const de: Content = {
         'Der Komprimieren-Dialog verkleinert das Dokument — vor allem durch Neukodierung eingebetteter Bilder.',
         'Preset wählen (stärker = kleinere Datei, sichtbarere Verluste), starten, Ergebnis prüfen: pdfedit zeigt die alte und neue Größe.',
         'Bringt ein Preset nichts (etwa bei reinen Text-PDFs), sagt pdfedit das ehrlich, statt eine kaum kleinere Datei zu feiern.',
+        'Neu kodiert werden eingebettete RGB- und Graustufen-JPEGs, Transparenz bleibt erhalten. CMYK-Bilder, JPEG 2000 und Fax-Scans bleiben unverändert.',
       ],
     },
     {
       id: 'redact',
       title: 'Schwärzen',
       body: [
-        'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt.',
+        'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt. Auch in der gespeicherten Datei bleibt vom Originalinhalt der Seite nichts zurück.',
         'Ablauf: Schwärzen aktivieren → Bereiche auf den Seiten markieren → „Anwenden“ → Sicherheitsabfrage bestätigen.',
         'Darstellung wählbar: schwarz übermalen, verpixeln (Mosaik) oder weichzeichnen (Blur). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
         'Optional werden dabei auch die Metadaten des Dokuments bereinigt: Autor, Titel, Thema, Stichwörter und Erstellungsprogramm.',
-        'Achtung: Der Vorgang ist unwiderruflich. Formularfelder und Anmerkungen auf betroffenen Seiten werden mit entfernt. Im Zweifel vorher eine Kopie speichern.',
+        'Achtung: Der Vorgang ist unwiderruflich. Geschwärzte Seiten werden zu Bildern (ihr Text ist danach nicht mehr auswählbar — OCR macht ihn wieder durchsuchbar). Formularfelder des Dokuments werden flachgerechnet, Anmerkungen der betroffenen Seiten entfernt, die Tagged-PDF-Struktur verworfen (sie kann Textkopien enthalten). Im Zweifel vorher eine Kopie speichern.',
       ],
     },
     {
@@ -297,7 +300,7 @@ const de: Content = {
         '„Ersetzen“ tauscht Inhalte in einem markierten Rechteck aus:',
         '• Text — den Bereich mit neuem Text überschreiben',
         '• Bild — den Bereich durch eine Bilddatei ersetzen',
-        'Der Bereich wird dabei geleert und neu gefüllt — bestehende Anmerkungen im Bereich gehen verloren (pdfedit warnt vorher).',
+        'Der Bereich wird dabei geleert und neu gefüllt — bestehende Anmerkungen im Bereich gehen verloren (pdfedit warnt vorher). Wie beim Schwärzen wird die Seite dabei zum Bild: Ihr übriger Text ist danach nicht mehr auswählbar, OCR macht ihn wieder durchsuchbar.',
       ],
     },
     {
@@ -314,6 +317,7 @@ const de: Content = {
       body: [
         '„Speichern“ schreibt das Dokument mit allen angewandten Änderungen.',
         'Tabs mit ungespeicherten Änderungen sind markiert; beim Schließen eines Tabs oder der App fragt pdfedit nach.',
+        'Gespeichert wird absturzsicher: erst in eine temporäre Datei, dann wird das Original ersetzt — ein Absturz oder voller Datenträger hinterlässt kein halbes PDF. pdfedit schreibt nur in Dateien, die du in dieser Sitzung geöffnet oder im Speichern-Dialog gewählt hast.',
       ],
     },
     {
@@ -538,6 +542,7 @@ const en: Content = {
         '• Remove password — saves the document unencrypted',
         'Password-protected PDFs open normally after the password prompt; saving keeps the protection with the known password until you change it here.',
         'For context: permissions without the open password are a convention that PDF apps respect — only the open password itself prevents opening.',
+        'PDFs that only carry permissions (no open password) open directly without a prompt. Those restrictions are dropped on save — set them again here if needed.',
       ],
     },
     {
@@ -550,6 +555,7 @@ const en: Content = {
         '• Merge — append another PDF to the document',
         '• Export selected pages — save them as a new, separate PDF',
         'Important: only “Apply” writes the changes into the document; until then everything is tentative.',
+        'Form fields, bookmarks and metadata survive “Apply”. Deleted pages are removed from the file completely — including their form fields. Remove the protection of password-protected PDFs (in their own tab) before appending them.',
       ],
     },
     {
@@ -571,17 +577,18 @@ const en: Content = {
         'The compress dialog shrinks the document — mainly by re-encoding embedded images.',
         'Pick a preset (stronger = smaller file, more visible loss), run it, check the result: pdfedit shows old and new size.',
         'If a preset achieves nothing (e.g. text-only PDFs), pdfedit says so honestly instead of celebrating a barely smaller file.',
+        'Re-encoded are embedded RGB and grayscale JPEGs, transparency is kept. CMYK images, JPEG 2000 and fax scans stay untouched.',
       ],
     },
     {
       id: 'redact',
       title: 'Redacting',
       body: [
-        'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box.',
+        'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box. Nothing of the page’s original content is left in the saved file either.',
         'Flow: enable redaction → mark areas on the pages → “Apply” → confirm the safety prompt.',
         'Choose the style: solid black, pixelate (mosaic) or blur (soften). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
         'Optionally the document’s metadata is cleaned as well: author, title, subject, keywords and producing application.',
-        'Caution: this cannot be undone. Form fields and annotations on affected pages are removed too. When in doubt, save a copy first.',
+        'Caution: this cannot be undone. Redacted pages become images (their text is no longer selectable — OCR makes it searchable again). The document’s form fields are flattened, annotations on affected pages removed and the tagged-PDF structure discarded (it can hold text copies). When in doubt, save a copy first.',
       ],
     },
     {
@@ -601,7 +608,7 @@ const en: Content = {
         '“Replace” swaps content inside a marked rectangle:',
         '• Text — overwrite the area with new text',
         '• Image — replace the area with an image file',
-        'The area is cleared and refilled — existing annotations inside it are lost (pdfedit warns you first).',
+        'The area is cleared and refilled — existing annotations inside it are lost (pdfedit warns you first). As with redaction, the page becomes an image: its remaining text is no longer selectable, OCR makes it searchable again.',
       ],
     },
     {
@@ -618,6 +625,7 @@ const en: Content = {
       body: [
         '“Save” writes the document with all applied changes.',
         'Tabs with unsaved changes are marked; pdfedit asks before closing a tab or the app.',
+        'Saving is crash-safe: first to a temporary file, then the original is replaced — a crash or full disk never leaves a half-written PDF. pdfedit only writes to files you opened or chose in the save dialog during this session.',
       ],
     },
     {
