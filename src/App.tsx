@@ -61,6 +61,8 @@ export default function App() {
   const viewerRef = useRef<PdfViewerHandle>(null);
   // number of saves currently writing to disk (see the close guard)
   const savingRef = useRef(0);
+  const [savingCount, setSavingCount] = useState(0);
+  const [viewerBusy, setViewerBusy] = useState(false);
 
   const toast = useCallback((msg: string, isError = false) => {
     setToastMsg({ msg, err: isError });
@@ -105,6 +107,14 @@ export default function App() {
       window.removeEventListener('focus', onFocus);
     };
   }, []);
+
+  // tell the backend whether quitting now would lose something — macOS
+  // "Quit" from the Dock / logout / Apple Event quit skip CloseRequested,
+  // Rust then closes the window instead so the questions below run
+  const quitGuard = docs.some((d) => d.dirty) || savingCount > 0 || viewerBusy;
+  useEffect(() => {
+    if (isTauri) api.setQuitGuard(quitGuard).catch(() => undefined);
+  }, [quitGuard]);
 
   // guard against quitting with unsaved edits anywhere
   useEffect(() => {
@@ -328,6 +338,7 @@ export default function App() {
     (id: number, bytes: Uint8Array, protectionOverride?: Protection | null): Promise<boolean> => {
       const gen = editGenRef.current.get(id) ?? 0;
       savingRef.current++;
+      setSavingCount(savingRef.current);
       const run = async (): Promise<boolean> => {
         const doc = docsRef.current.find((d) => d.id === id);
         if (!doc) return false;
@@ -358,6 +369,7 @@ export default function App() {
       const prev = saveChainRef.current.get(id) ?? Promise.resolve();
       const next = prev.then(run, run).finally(() => {
         savingRef.current--;
+        setSavingCount(savingRef.current);
         if (saveChainRef.current.get(id) === next) saveChainRef.current.delete(id);
       });
       saveChainRef.current.set(id, next);
@@ -511,6 +523,7 @@ export default function App() {
           onSave={(bytes, protectionOverride) => saveDoc(active.id, bytes, protectionOverride)}
           onReplace={(bytes) => replaceDoc(active.id, bytes)}
           onProtectionChange={(p) => setProtection(active.id, p)}
+          onBusyChange={setViewerBusy}
           onError={(msg) => toast(msg, true)}
           onNotice={(msg) => toast(msg)}
         />

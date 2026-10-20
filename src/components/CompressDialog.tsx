@@ -30,11 +30,12 @@ export default function CompressDialog({ onCompress, onClose }: Props) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    // closing mid-run would let the result replace edits made meanwhile
+    <div className="overlay" onClick={busy ? undefined : onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="mhead">
           <h3>{t.compressTitle}</h3>
-          <button className="ghost" onClick={onClose}>
+          <button className="ghost" onClick={onClose} disabled={!!busy}>
             ×
           </button>
         </div>
@@ -57,7 +58,9 @@ export default function CompressDialog({ onCompress, onClose }: Props) {
           <p className="faint">{t.compressHint}</p>
         </div>
         <div className="mfoot">
-          <button onClick={onClose}>{t.close}</button>
+          <button onClick={onClose} disabled={!!busy}>
+            {t.close}
+          </button>
         </div>
       </div>
     </div>

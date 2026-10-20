@@ -8,7 +8,7 @@ const de = {
     '(auch Systemschriften), erstellt und füllt Formulare aus, signiert ' +
     'digital per Zertifikat, schützt mit Passwort, bettet unsichtbare ' +
     'Wasserzeichen ein, organisiert Seiten per Drag & Drop, komprimiert, ' +
-    'schwärzt (schwarz oder verpixelt) und erkennt Text per OCR — alles ' +
+    'schwärzt (schwarz, verpixelt oder weichgezeichnet) und erkennt Text per OCR — alles ' +
     'lokal. Fließtext-Bearbeitung mit Umbruch zieht als nächstes Update ein.',
   openPdf: 'PDF öffnen',
   newPdf: 'Neues PDF',
@@ -29,6 +29,7 @@ const de = {
   saveError: 'Speichern fehlgeschlagen',
   find: 'Suchen',
   findPlaceholder: 'Im Dokument suchen …',
+  findHint: 'Enter: nächster Treffer · Umschalt+Enter: vorheriger Treffer',
   findNoResults: 'Keine Treffer',
   tools: {
     select: 'Auswahl',
@@ -99,7 +100,7 @@ const de = {
       ? 'Die markierte Stelle wird unwiderruflich aus der Seite entfernt — die betroffene Seite wird dabei zu einem Bild. Text auf dieser Seite ist danach nicht mehr durchsuchbar oder kopierbar.'
       : `Die ${n} markierten Stellen werden unwiderruflich aus ihren Seiten entfernt — die betroffenen Seiten werden dabei zu Bildern. Text auf diesen Seiten ist danach nicht mehr durchsuchbar oder kopierbar.`,
   redactConfirmHint:
-    'Vorhandene Formularfelder, Markierungen und Notizen auf den betroffenen Seiten werden mitentfernt. Andere Seiten bleiben unverändert. Diese Aktion lässt sich nicht rückgängig machen.',
+    'Alle Formularfelder des Dokuments werden flachgerechnet (Werte bleiben sichtbar, sind aber nicht mehr ausfüllbar); Markierungen und Notizen auf den betroffenen Seiten werden mitentfernt. Die übrigen Inhalte anderer Seiten bleiben unverändert. Diese Aktion lässt sich nicht rückgängig machen.',
   redactCleanMetadata: 'Metadaten auch bereinigen (Autor, Titel, Thema, Stichwörter, Ersteller-Programm)',
   redactError: 'Schwärzen fehlgeschlagen',
   redactMarksLostWarning: 'Nicht angewendete Schwärzungs-Markierungen wurden beim Tab-Wechsel verworfen.',
@@ -122,7 +123,7 @@ const de = {
   ocrError: 'Texterkennung fehlgeschlagen',
   editRegionButton: 'Ersetzen',
   editRegionHint:
-    'Bereich auf der Seite aufziehen, dann Ersatzinhalt wählen. Wichtig: Dabei wird die ganze Seite zu einem Bild — nur der neue Text/das neue Bild bleibt danach editierbar und durchsuchbar, der Rest der Seite nicht mehr. Kein Textumbruch, keine Vektorbearbeitung — für einfache Korrekturen gedacht, nicht für echtes Umschreiben.',
+    'Bereich auf der Seite aufziehen, dann Ersatzinhalt wählen. Wichtig: Dabei wird die ganze Seite zu einem Bild — nur der neue Text/das neue Bild bleibt danach editierbar und durchsuchbar, der Rest der Seite nicht mehr. Anmerkungen, Links und Formularfelder dieser Seite werden Teil des Bildes. Kein Textumbruch, keine Vektorbearbeitung — für einfache Korrekturen gedacht, nicht für echtes Umschreiben.',
   editRegionTitle: 'Bereich ersetzen',
   editRegionText: 'Text',
   editRegionImage: 'Bild',
@@ -396,7 +397,7 @@ const en: typeof de = {
     'and draws with selectable color, size and font (system fonts too), ' +
     'creates and fills out forms, signs digitally with a certificate, ' +
     'protects with a password, embeds invisible watermarks, reorders ' +
-    'pages via drag & drop, compresses, redacts (black or pixelated) and ' +
+    'pages via drag & drop, compresses, redacts (black, pixelated or blurred) and ' +
     'recognizes text via OCR — all locally. Reflow text editing arrives ' +
     'as the next update.',
   openPdf: 'Open PDF',
@@ -418,6 +419,7 @@ const en: typeof de = {
   saveError: 'Save failed',
   find: 'Find',
   findPlaceholder: 'Find in document …',
+  findHint: 'Enter: next match · Shift+Enter: previous match',
   findNoResults: 'No matches',
   tools: {
     select: 'Select',
@@ -488,7 +490,7 @@ const en: typeof de = {
       ? 'The marked area will be permanently removed from the page — the affected page becomes an image. Text on that page will no longer be searchable or selectable.'
       : `The ${n} marked areas will be permanently removed from their pages — the affected pages become images. Text on those pages will no longer be searchable or selectable.`,
   redactConfirmHint:
-    'Existing form fields, highlights and notes on the affected pages are removed along with it. Other pages stay untouched. This action cannot be undone.',
+    'All form fields of the document are flattened (values stay visible but can no longer be filled in); highlights and notes on the affected pages are removed along with it. Everything else on other pages stays untouched. This action cannot be undone.',
   redactCleanMetadata: 'Also clean metadata (author, title, subject, keywords, producer)',
   redactError: 'Redaction failed',
   redactMarksLostWarning: 'Unapplied redaction marks were discarded when the tab changed.',
@@ -511,7 +513,7 @@ const en: typeof de = {
   ocrError: 'Text recognition failed',
   editRegionButton: 'Replace',
   editRegionHint:
-    'Drag a box over the area, then pick replacement content. Note: this turns the whole page into an image — only the new text/image stays editable and searchable afterward, the rest of the page no longer is. No reflow, no vector editing — meant for simple corrections, not real rewriting.',
+    'Drag a box over the area, then pick replacement content. Note: this turns the whole page into an image — only the new text/image stays editable and searchable afterward, the rest of the page no longer is. Annotations, links and form fields on that page become part of the image. No reflow, no vector editing — meant for simple corrections, not real rewriting.',
   editRegionTitle: 'Replace area',
   editRegionText: 'Text',
   editRegionImage: 'Image',

@@ -117,6 +117,40 @@ const tests: Record<string, () => Promise<void>> = {
     ok(t[0].includes('NEUER TEXT'), `replacement text missing: ${t[0]}`);
   },
 
+  async region_edit_drops_fields_of_that_page_only() {
+    const doc = await PDFDocument.create();
+    const p1 = doc.addPage([400, 400]);
+    const p2 = doc.addPage([400, 400]);
+    const form = doc.getForm();
+    const a = form.createTextField('feld.seite1');
+    a.setText('WERT-SEITE-EINS');
+    a.addToPage(p1, { x: 40, y: 300, width: 200, height: 24 });
+    const b = form.createTextField('feld.seite2');
+    b.setText('WERT-SEITE-ZWEI');
+    b.addToPage(p2, { x: 40, y: 300, width: 200, height: 24 });
+    const src = await doc.save();
+    const out = await applyRegionEdit(
+      src,
+      { pageIndex: 0, xPct: 0.05, yPct: 0.6, wPct: 0.5, hPct: 0.1 },
+      { kind: 'text', text: 'NEU' }
+    );
+    const outDoc = await PDFDocument.load(out);
+    const outForm = outDoc.getForm();
+    const names = outForm.getFields().map((f) => f.getName());
+    ok(JSON.stringify(names) === '["feld.seite2"]', `fields after region edit: ${JSON.stringify(names)}`);
+    ok(outForm.getTextField('feld.seite2').getText() === 'WERT-SEITE-ZWEI', 'field on the other page must stay');
+    // pdf-lib stores field values as UTF-16BE hex strings
+    const utf16 = (s: string) =>
+      'FEFF' + [...s].map((c) => c.charCodeAt(0).toString(16).padStart(4, '0')).join('').toUpperCase();
+    // re-save without object streams (load keeps every object, reachable
+    // or not) so the dict entries are plain text to search
+    const plain = await outDoc.save({ useObjectStreams: false });
+    let all = '';
+    for (let i = 0; i < plain.length; i++) all += String.fromCharCode(plain[i]);
+    ok(all.includes(utf16('WERT-SEITE-ZWEI')), 'probe: UTF-16 value of the kept field not found');
+    ok(!all.includes(utf16('WERT-SEITE-EINS')), 'value of the removed field still in file');
+  },
+
   async compress_reencodes_jpeg_and_keeps_smask() {
     const c = document.createElement('canvas');
     c.width = 1200;

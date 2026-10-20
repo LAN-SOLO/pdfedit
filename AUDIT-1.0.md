@@ -485,3 +485,148 @@ stichprobenartig nachgeprüft.
 - Großes PDF auf langsamem Laufwerk/Netzlaufwerk speichern: „Speichern“
   bleibt bis zum Ende gesperrt, Weiterarbeiten währenddessen lässt den Tab
   ungespeichert.
+
+## 11. Runde 3 (2026-10-20, abschließend)
+
+Basis: `4822c42`. Ziel: jede Aussage in Hilfe (DE/EN), README und
+In-App-Texten gegen den Code prüfen, Nutzerwege inkl. Fehlerfällen
+durchspielen, Reste aus Runde 2 schließen.
+
+**Testläufe**
+
+| Befehl | Ergebnis |
+|---|---|
+| `cargo test --workspace` | 18 bestanden (neu: schreibgeschützter Ordner auf echtem Dateisystem, Beenden-Entscheidung macOS) |
+| `cargo clippy --all-targets` (macOS) und für `x86_64-pc-windows-msvc` | nur der alte Hinweis `chunks_exact` |
+| `cargo check --target x86_64-pc-windows-msvc --workspace --tests` | fehlerfrei |
+| `pnpm test` | 21 bestanden (neu: Hilfe zitiert nur echte UI-Texte); 8 Läufe — der allererste meldete 1 Fehlschlag, dessen Ausgabe nicht erfasst wurde und der sich danach nicht reproduzieren ließ |
+| `pnpm build` | fehlerfrei |
+| `scripts/e2e-browser.mjs` (Chromium) | 7 bestanden (neu: Bereich ersetzen entfernt Felder nur dieser Seite; vor dem Fix rot) |
+| `scripts/ui-flows.mjs` (Chromium, gemockte IPC) | 132 bestanden (100 + 32 neue), 0 Seitenfehler — DE+EN × Dunkel+Hell |
+| Debug-Build auf macOS, Beenden per Apple-Event (`NSRunningApplication.terminate`) | ohne Änderungen: App beendet sofort; mit `PDFEDIT_DEBUG_QUIT_GUARD=1`: Beenden abgebrochen → `CloseRequested` → Frontend → `Destroyed` (echte WKWebView) |
+
+**Behoben (Code)**
+
+- **Beenden über Dock / Abmelden / Apple-Event `quit` (macOS)** ging ohne
+  Rückfrage an allen ungespeicherten Änderungen vorbei. Jetzt ergänzt
+  `mac_quit` zur Laufzeit `applicationShouldTerminate:` am App-Delegate von
+  tao (`objc2` 0.6.4, bereits im Lockfile über tao/wry, nur als direkte
+  macOS-Abhängigkeit eingetragen). Das Frontend meldet per
+  `set_quit_guard`, ob etwas verloren ginge (ungespeicherter Tab, laufendes
+  Speichern, längere Aufgabe). Nichts zu verlieren → sofort beenden
+  (Abmelden läuft weiter); sonst Beenden abbrechen und das Fenster wie mit
+  dem roten Knopf schließen → bekannte Rückfragen. Tauri bietet dafür
+  nichts: `RunEvent::ExitRequested` kommt bei `terminate:` nicht (tao ruft
+  nur `applicationWillTerminate` → Exit).
+- **„Auswahl exportieren“ und „Übernehmen“ im Seiten-Dialog** zählen jetzt
+  zur Rückfrage „pdfedit arbeitet noch“ (UI-Lauf: Schließen während des
+  Exports fragt, Abbrechen lässt die App offen).
+- **Komprimieren**: Der Dialog ließ sich während des Laufs schließen; das
+  Ergebnis ersetzte danach das Dokument und verwarf Änderungen, die
+  inzwischen gemacht wurden. Schließen ist jetzt gesperrt, solange es läuft.
+  Komprimieren und Schwärzen lassen den Busy-Zustand („Komprimiere …“,
+  „Schwärze …“) erst zeichnen, bevor die Arbeit beginnt.
+- **Bereich ersetzen** ließ Formularfelder der Seite ohne Widget im
+  AcroForm zurück (Wert weiter in der Datei, Feld im Objekte-Panel, aber
+  nirgends sichtbar). Felder, deren Widgets alle auf dieser Seite liegen,
+  werden jetzt entfernt; ihr Aussehen steckt im Seitenbild.
+- **Suche**: Die Hilfe versprach „Vor/Zurück durch die Treffer“, es gab nur
+  „weiter“ (Enter). Jetzt Umschalt+Enter = vorheriger Treffer, Tooltip am
+  Suchfeld (DE/EN).
+
+**Falsche Aussagen korrigiert (Text, DE+EN)**
+
+- Schwärzen-Bestätigung: „Andere Seiten bleiben unverändert“ — falsch, alle
+  Formularfelder des Dokuments werden flachgerechnet. Text sagt das jetzt.
+- Hilfe „Bereich bearbeiten“: „bestehende Anmerkungen im Bereich gehen
+  verloren (pdfedit warnt vorher)“ — tatsächlich betrifft es alle
+  Anmerkungen, Links und Formularfelder der Seite, und der Dialog warnte
+  nicht. Hilfe und Dialog-Hinweis korrigiert.
+- Hilfe „Stempel“: „per Klick platzieren“ — der Stempel erscheint mittig im
+  sichtbaren Teil der aktuellen Seite und wird per Ziehen verschoben.
+- Hilfe (DE) nannte Knöpfe, die es so nicht gibt: „Anwenden“ (Seiten-Dialog
+  heißt „Übernehmen“), „Leeren“ (heißt „Löschen“), „Seitenbreite“/„Ganze
+  Seite“ (heißen „Breite“/„Seite“), „Formular flachrechnen“ (heißt „Formular
+  flach rechnen“). `test_help_quotes_only_real_labels` gleicht jetzt alle
+  zitierten Begriffe der Hilfe gegen die UI-Texte der Sprache ab
+  (Ausnahmen: Acrobat-Begriffe, Dock-Menü „Beenden“/„Quit“).
+- Hilfe „Seiten“: Leerseite „an beliebiger Stelle“ — sie wird als A4 hinten
+  angefügt und mit ↑/↓ verschoben; Drehen/Löschen ergänzt.
+- Schwärzen: „Beides entfernt den Inhalt“ bei drei Stilen → „Alle drei“;
+  Startseiten-Text nennt jetzt auch „weichgezeichnet“.
+- README: „mit pdfedit inked … Text mit Umbruch, Bilder, Vektorobjekte“ —
+  die App hat keine Tarif-Freischaltung, Fließtext mit Umbruch und
+  Vektorbearbeitung gibt es nicht. README sagt jetzt „geplant“.
+
+**Geprüft ohne Befund** (Code gelesen; * = zusätzlich ausgeführt)
+
+Format-/Seitenzahl-Grenzen „Neues PDF“ (A3–Legal, 1–500), Formularfeld-Typen,
+Signatur-Grund, Berechtigungen (Drucken/Kopieren/Ändern/Ausfüllen/
+Kommentieren), OCR-Sprachen einzeln/kombiniert und lokale Sprachdaten
+(`public/tessdata`, keine CDN-Pfade), Metadaten-Bereinigung (Titel, Autor,
+Thema, Stichwörter, Ersteller, Producer, XMP), Komprimier-Grenzen,
+Update-Intervalle (Start, 4 h, Fokus nach 30 min), Update-Endpoint
+`LAN-SOLO/pdfedit`, Lese-/Schreib-Allow-Liste* (Runde 2 hat `read_pdf`
+bereits auf Dialog-/Drop-/Speicher-Pfade beschränkt — der Rest aus der
+Aufgabenliste war damit erledigt), atomares Speichern* inkl.
+schreibgeschütztem Ordner, Hell/Dunkel-Knopf, Seitensprung per Enter,
+Farbwähler, Laufweiten-Verdichtung (Tz ≥ 82 %). DE- und EN-Hilfe haben
+dieselben 19 Abschnitte und 66 Aufzählungspunkte.
+
+**Nutzerwege** (UI-Lauf je DE/EN × Dunkel/Hell, sofern nicht anders genannt)
+
+1. Start → „PDF öffnen“ abgebrochen → kein Tab, keine Meldung.
+2. Öffnen einer gesperrten Datei → übersetzte Meldung ohne OS-Text.
+3. PDF mit Umlaut-/Leerzeichen-Pfad öffnen, externer Link (kopiert statt
+   navigiert), interner Link (Seite 2).
+4. Objekte-Panel: Feld löschen → native Rückfrage, Abbrechen behält es.
+5. Ungespeicherten Tab bzw. Fenster schließen → Abbrechen behält alles.
+6. Speichern scheitert (`io.locked`, `io.full`, `io.denied`) → übersetzt,
+   Tab bleibt ungespeichert, Beenden-Schutz an; Rust-Test: schreib­geschützter
+   Ordner auf echtem APFS, Original unverändert, keine Temp-Datei.
+7. Langsames Speichern → kein zweiter Schreibvorgang, danach sauber,
+   Beenden-Schutz aus.
+8. Seiten-Dialog: Auswahl exportieren (langsam) → Schließen fragt „arbeitet
+   noch“; Meldung mit Dateinamen; danach speichern → Schutz aus.
+9. Schwärzen (3 Stile), Bereich ersetzen (Text, Felder), Komprimieren,
+   OCR, JPEG 2000 (Browser-E2E, Chromium).
+10. macOS-Beenden per Apple-Event am echten Debug-Build (siehe Tabelle).
+11. „App-Neustart mitten in der Aufgabe“: nur auf Ebene des atomaren
+    Schreibens geprüft (Rust-Tests: kein halbes PDF, Temp-Datei weg) — eine
+    Sitzungs-Wiederherstellung gibt es nicht; ungespeicherte Arbeit schützt
+    allein die Beenden-Rückfrage.
+
+**Weiter offen / bewusst nicht geändert**
+
+- **Worker für Komprimieren/Schwärzen**: nicht umgebaut. Schwärzen und
+  Bereich ersetzen rendern mit pdf.js auf DOM-Canvas, Komprimieren nutzt
+  `createImageBitmap`/`canvas.toBlob`; ein Worker bräuchte OffscreenCanvas
+  und eine zweite pdf.js-Instanz im Worker — in WKWebView/WebView2 heute
+  nicht prüfbar. Abgemildert: Busy-Zustand wird vorher gezeichnet, die
+  Dialoge sind während des Laufs gesperrt, die Arbeit gibt zwischen Seiten
+  bzw. Bildern den Thread frei (await auf Blob/Bitmap).
+- **Windows Abmelden/Herunterfahren** (`WM_QUERYENDSESSION`): nicht
+  abgefangen — tao 0.35.3 verarbeitet `WM_QUERYENDSESSION` laut eigenem
+  Quelltext-Kommentar noch nicht (`event_loop.rs`), ein eigener Hook bräuchte
+  Win32-Subclassing (nicht auf echter Hardware prüfbar).
+- macOS: Hat pdfedit etwas zu verlieren, bricht es Abmelden/Ausschalten ab
+  (System meldet „pdfedit hat das Abmelden abgebrochen“); nach den
+  Rückfragen muss der Nutzer neu abmelden. Bewusst so — ein
+  `NSTerminateLater` mit Antwort nach den Dialogen wäre eleganter, aber das
+  Verhalten der Webview im modalen Run-Loop ist hier nicht prüfbar.
+- Menüeintrag „Quit pdfedit“ weiter englisch; `zip` 4.6.1 im Updater,
+  `node-forge`-Advisory, `cargo fmt` wie in Abschnitt 10.
+
+**Nur auf echter Hardware prüfbar (zusätzlich zu 7, 9, 10)**
+
+- macOS: Dokument ändern → im Dock „Beenden“ → Rückfrage „ungespeicherte
+  Änderungen“; Abbrechen lässt die App offen; „Verwerfen und beenden“
+  beendet. Dasselbe beim Abmelden (danach erneut abmelden). Ohne Änderungen
+  beendet „Beenden“ im Dock sofort und hält das Abmelden nicht auf.
+- macOS/Windows: Seiten-Dialog → „Auswahl exportieren“ → während des
+  Schreibens Fenster schließen → „pdfedit arbeitet noch“.
+- Komprimieren eines großen Scan-PDFs: „Komprimiere …“ erscheint sofort,
+  Dialog lässt sich währenddessen nicht schließen.
+- Suche: Umschalt+Enter springt rückwärts (WKWebView/WebView2).
+- Windows: Abmelden mit ungespeichertem Tab — Verhalten beobachten
+  (vermutlich Verlust ohne Rückfrage, siehe offen).

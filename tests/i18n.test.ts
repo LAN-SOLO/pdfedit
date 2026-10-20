@@ -98,3 +98,25 @@ export function test_local_date_stamp_uses_local_calendar_day() {
   assert(localDateStamp(new Date(2026, 2, 29, 3, 5)) === '2026-03-29', 'DST day');
   assert(localDateStamp(new Date(2026, 11, 31, 23, 59)) === '2026-12-31', 'year end');
 }
+
+/** Every UI label the manual quotes („…“ / “…”) is a real text of the app
+ *  in that language — Round 3 found the German manual naming buttons that
+ *  don't exist („Anwenden“ for „Übernehmen“, „Leeren“ for „Löschen“ …).
+ *  Allowed: names from other programs and the macOS Dock menu. */
+export async function test_help_quotes_only_real_labels() {
+  const fs = await import('node:fs');
+  const help = fs.readFileSync(new URL('../src/components/Help.tsx', import.meta.url), 'utf8');
+  const foreign = new Set(['Formular vorbereiten', 'Prepare form', 'Beenden', 'Quit']);
+  const parts = {
+    de: help.slice(help.indexOf('const de: Content'), help.indexOf('const en: Content')),
+    en: help.slice(help.indexOf('const en: Content'), help.indexOf('const SEEN_KEY')),
+  };
+  for (const lang of ['de', 'en'] as const) {
+    const texts = JSON.stringify(dicts[lang], (_k, v) => (typeof v === 'function' ? String(v) : v));
+    for (const m of parts[lang].matchAll(/[„“"]([^“”"„]{2,40})[“”"]/g)) {
+      const q = m[1];
+      if (foreign.has(q)) continue;
+      assert(texts.includes(q), `${lang} manual quotes „${q}“, which is no UI text`);
+    }
+  }
+}

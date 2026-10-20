@@ -1,6 +1,6 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFJS_DOC_OPTIONS } from './pdfjsConfig';
-import { PDFDocument as PdfLibDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFArray, PDFDocument as PdfLibDocument, PDFName, StandardFonts, rgb } from 'pdf-lib';
 import { pruneUnreachable, replacePageWithImage } from './pdfScrub';
 
 export interface EditRegion {
@@ -59,6 +59,23 @@ export const applyRegionEdit = async (
   const width = pointsViewport.width;
   const height = pointsViewport.height;
   await pdfjsTask.destroy();
+
+  // The raster replaces the page's /Annots — form fields whose widgets all
+  // sit on this page would stay in the AcroForm without any widget left
+  // (listed in the Objects panel, value still in the file, invisible).
+  // Their look is in the raster now; the fields themselves go.
+  const pageNode = pdfDoc.getPage(region.pageIndex).node;
+  const annots = pageNode.lookupMaybe(PDFName.of('Annots'), PDFArray);
+  if (annots && annots.size() > 0) {
+    const onPage = new Set<unknown>();
+    for (let i = 0; i < annots.size(); i++) onPage.add(pdfDoc.context.lookup(annots.get(i)));
+    const form = pdfDoc.getForm();
+    for (const field of form.getFields()) {
+      const widgets = field.acroField.getWidgets();
+      if (widgets.length > 0 && widgets.every((w) => onPage.has(w.dict))) form.removeField(field);
+    }
+  }
+
   await replacePageWithImage(pdfDoc, region.pageIndex, rasterBytes, width, height);
   const newPage = pdfDoc.getPage(region.pageIndex);
 

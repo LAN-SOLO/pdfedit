@@ -265,6 +265,9 @@ interface PdfViewerProps {
    *  drawn stroke: it marks the tab dirty but does not touch disk. */
   onReplace: (bytes: Uint8Array) => void;
   onProtectionChange: (protection: Protection | null) => void;
+  /** Reports whether a long task runs (same as `isBusy()`), so the app can
+   *  tell the backend that quitting now needs a question (Dock quit). */
+  onBusyChange?: (busy: boolean) => void;
   onError: (msg: string) => void;
   onNotice: (msg: string) => void;
 }
@@ -293,6 +296,16 @@ export interface PdfViewerHandle {
  *  silently swallowed edits meant for the visible one). Only ever mount
  *  ONE of these at a time — the parent unmounts inactive tabs and uses
  *  `checkpoint()` beforehand to keep their in-progress edits. */
+/** Lets the busy state ("compressing…", "redacting…") reach the screen
+ *  before work that keeps the main thread busy for a while starts. rAF
+ *  doesn't fire in a hidden window — the timeout caps the wait. */
+const nextPaint = () =>
+  new Promise<void>((resolve) => {
+    const done = () => resolve();
+    requestAnimationFrame(() => setTimeout(done, 0));
+    setTimeout(done, 100);
+  });
+
 const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer(
   {
     data,
@@ -303,6 +316,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     onSave,
     onReplace,
     onProtectionChange,
+    onBusyChange,
     onError,
     onNotice,
   },
@@ -867,8 +881,18 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
   }, [onError, commitPendingEdits, saveWithFonts]);
 
   const compressingRef = useRef(false);
+  const [compressing, setCompressing] = useState(false);
+  // "Apply" / "Export selection" in the Pages dialog (export writes a file)
+  const pagesBusyRef = useRef(false);
+  const [pagesBusy, setPagesBusy] = useState(false);
+  const onPagesBusy = useCallback((b: boolean) => {
+    pagesBusyRef.current = b;
+    setPagesBusy(b);
+  }, []);
   const busyRef = useRef(false);
   busyRef.current =
+    compressing ||
+    pagesBusy ||
     saving ||
     flattening ||
     redactBusy ||
@@ -881,9 +905,18 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     wmBusy;
   useImperativeHandle(
     ref,
-    () => ({ checkpoint: doCheckpoint, isBusy: () => busyRef.current || compressingRef.current }),
+    () => ({
+      checkpoint: doCheckpoint,
+      isBusy: () => busyRef.current || compressingRef.current || pagesBusyRef.current,
+    }),
     [doCheckpoint]
   );
+  const busyNow = busyRef.current;
+  useEffect(() => {
+    onBusyChange?.(busyNow);
+  }, [busyNow, onBusyChange]);
+  // unmounted (tab switch/close) — whatever ran here is over
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
 
   // The drag-capture modes (redact, region edit, field placement, signature
   // placement) all grab pointer events on the pages — only ever one at a time.
@@ -953,7 +986,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     pdfViewer.currentPageNumber = Math.max(1, Math.min(pdfViewer.pagesCount, n));
   }, []);
 
-  const runFind = (query: string, again = false) => {
+  const runFind = (query: string, again = false, previous = false) => {
     eventBusRef.current?.dispatch('find', {
       source: null,
       type: again ? 'again' : '',
@@ -961,7 +994,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       caseSensitive: false,
       entireWord: false,
       highlightAll: true,
-      findPrevious: false,
+      findPrevious: previous,
       matchDiacritics: true,
     });
   };
@@ -1014,7 +1047,9 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     const pdfViewer = pdfViewerRef.current;
     if (!pdfViewer?.pdfDocument) return null;
     compressingRef.current = true;
+    setCompressing(true);
     try {
+      await nextPaint();
       await commitPendingEdits();
       const bytes = await saveWithFonts();
       const { bytes: compressed, imagesTouched } = await compressPdf(bytes, preset);
@@ -1028,6 +1063,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
       return null;
     } finally {
       compressingRef.current = false;
+      setCompressing(false);
     }
   };
 
@@ -1036,6 +1072,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
     if (!pdfViewer?.pdfDocument || marks.length === 0) return;
     setRedactBusy(true);
     try {
+      await nextPaint();
       await commitPendingEdits();
       const bytes = await saveWithFonts();
       const marksByPage = new Map<number, RedactMark[]>();
@@ -2194,13 +2231,15 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
           <input
             className="findinput"
             placeholder={t.findPlaceholder}
+            title={t.findHint}
             value={findQuery}
             onChange={(e) => {
               setFindQuery(e.target.value);
               runFind(e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') runFind(findQuery, true);
+              // Enter: next hit, Shift+Enter: previous hit
+              if (e.key === 'Enter') runFind(findQuery, true, e.shiftKey);
               if (e.key === 'Escape') setShowFind(false);
             }}
             autoFocus
@@ -2254,6 +2293,7 @@ const PdfViewer = forwardRef<PdfViewerHandle, PdfViewerProps>(function PdfViewer
             onReplace(bytes);
           }}
           onClose={() => setShowPages(false)}
+          onBusyChange={onPagesBusy}
           onError={onError}
           onNotice={onNotice}
         />

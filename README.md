@@ -2,10 +2,14 @@
 
 Vollwertiger PDF-Editor für macOS, Windows und Linux: lesen, Anmerkungen
 nach ISO-32000-Standard (kompatibel zu Acrobat, PDF Expert & Co.), Formulare
-ausfüllen, signieren, Seiten organisieren — und mit **pdfedit inked**
-(12 €/Jahr = 1 €/Monat) die vollständige Bearbeitung: Text mit Umbruch,
-Bilder, Vektorobjekte, OCR und echtes Schwärzen. **Free** bleibt dauerhaft
-kostenlos und voll nutzbar.
+ausfüllen, signieren, Seiten organisieren, OCR und echtes Schwärzen.
+Geplant ist der Tarif **pdfedit inked** (12 €/Jahr = 1 €/Monat) für die
+vollständige Bearbeitung (Text mit Umbruch, Vektorobjekte); **Free** bleibt
+dauerhaft kostenlos und voll nutzbar.
+
+Stand 1.0.0: Die App hat noch keine Tarif-Freischaltung — alle Funktionen
+unten sind ohne Konto nutzbar. Fließtext mit Umbruch und das Bearbeiten
+von Vektorobjekten sind noch nicht enthalten (Roadmap in `PDFEDIT_PLAN.md`).
 
 Produktseite: https://lan-solo.com/de/tools/pdfedit/ · Plan:
 `PDFEDIT_PLAN.md` (Produktdefinition, Engine, Architektur, Roadmap).
@@ -53,4 +57,12 @@ Speichern; die Webview darf nicht aus der App-URL wegnavigieren.
 Speichern läuft pro Dokument nacheinander (`saveDoc` in `src/App.tsx`); ein
 fehlgeschlagener Schreibvorgang markiert den Tab wieder als ungespeichert.
 Unter macOS ersetzt `app_menu` (main.rs) das „Quit“ des Standardmenüs, damit
-⌘Q dieselben Rückfragen auslöst wie das Schließen des Fensters.
+⌘Q dieselben Rückfragen auslöst wie das Schließen des Fensters. „Beenden“ im
+Dock, Abmelden und Apple-Event-`quit` fängt `mac_quit` ab (ein zur Laufzeit
+ergänztes `applicationShouldTerminate:` am App-Delegate von tao, über `objc2`
+aus dem Lockfile): Meldet das Frontend per `set_quit_guard`, dass etwas
+verloren ginge (ungespeichert, Speichern läuft, längere Aufgabe inkl.
+Seiten übernehmen/exportieren), wird das Beenden abgebrochen und das Fenster
+geschlossen → dieselben Rückfragen; sonst beendet die App sofort. Test in
+Debug-Builds: `PDFEDIT_DEBUG_QUIT_GUARD=1` erzwingt den abgesicherten Weg
+(stderr zeigt `applicationShouldTerminate guard=…`).

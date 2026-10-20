@@ -699,6 +699,92 @@ fn app_menu<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::Result<tauri
     Ok(menu)
 }
 
+/// Whether quitting right now would lose something: a tab with unsaved
+/// changes, a save still writing or a long task still running. The
+/// frontend reports it (`set_quit_guard`) whenever it changes; the macOS
+/// terminate hook below reads it.
+#[derive(Default)]
+struct QuitGuard(std::sync::atomic::AtomicBool);
+
+#[tauri::command]
+fn set_quit_guard(guard: tauri::State<'_, QuitGuard>, active: bool) {
+    guard.0.store(active, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// macOS: "Quit" from the Dock, logging out, shutting down and an Apple
+/// Event `quit` all call `NSApp terminate:`, which tao (0.35) lets through
+/// at once — no CloseRequested, unsaved edits gone. tao's app delegate has
+/// no `applicationShouldTerminate:`, so we add one to its class at
+/// runtime: with nothing to lose it answers "terminate now" (logout goes
+/// on); otherwise it cancels the termination and closes the window the
+/// way its red button does, which asks the usual questions. Discarding
+/// there quits the app; logout/shutdown then has to be started again.
+#[cfg(target_os = "macos")]
+mod mac_quit {
+    use super::QuitGuard;
+    use objc2::runtime::{AnyObject, Imp, Sel};
+    use objc2::{class, ffi, msg_send, sel};
+    use std::sync::OnceLock;
+    use tauri::Manager;
+
+    static APP: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+    const TERMINATE_CANCEL: usize = 0; // NSTerminateCancel
+    const TERMINATE_NOW: usize = 1; // NSTerminateNow
+
+    /// The decision, separate from the Objective-C glue so it can be tested.
+    pub(super) fn should_terminate_now(guard_active: bool, has_window: bool) -> bool {
+        !guard_active || !has_window
+    }
+
+    extern "C-unwind" fn should_terminate(_this: *mut AnyObject, _cmd: Sel, _sender: *mut AnyObject) -> usize {
+        let Some(app) = APP.get() else {
+            return TERMINATE_NOW;
+        };
+        let active = app
+            .try_state::<QuitGuard>()
+            .map(|g| g.0.load(std::sync::atomic::Ordering::SeqCst))
+            .unwrap_or(false);
+        // debug builds only: lets a terminate test force the guarded path
+        let active = active || (cfg!(debug_assertions) && std::env::var_os("PDFEDIT_DEBUG_QUIT_GUARD").is_some());
+        let window = app.get_webview_window("main");
+        #[cfg(debug_assertions)]
+        eprintln!("pdfedit: applicationShouldTerminate guard={active} window={}", window.is_some());
+        if should_terminate_now(active, window.is_some()) {
+            return TERMINATE_NOW;
+        }
+        if let Some(w) = window {
+            // queued on the event loop — runs after this returns
+            let _ = w.close();
+        }
+        TERMINATE_CANCEL
+    }
+
+    pub fn install(app: &tauri::AppHandle) {
+        if APP.set(app.clone()).is_err() {
+            return;
+        }
+        unsafe {
+            let ns_app: *mut AnyObject = msg_send![class!(NSApplication), sharedApplication];
+            if ns_app.is_null() {
+                return;
+            }
+            let delegate: *mut AnyObject = msg_send![ns_app, delegate];
+            if delegate.is_null() {
+                return;
+            }
+            let cls = (*delegate).class() as *const _ as *mut objc2::runtime::AnyClass;
+            let imp: Imp = std::mem::transmute::<
+                extern "C-unwind" fn(*mut AnyObject, Sel, *mut AnyObject) -> usize,
+                Imp,
+            >(should_terminate);
+            // "Q@:@" = NSUInteger (id self, SEL _cmd, id sender); returns NO
+            // (and changes nothing) if the class already has the method
+            ffi::class_addMethod(cls, sel!(applicationShouldTerminate:), imp, c"Q@:@".as_ptr());
+        }
+    }
+}
+
 fn main() {
     let builder = tauri::Builder::default();
     #[cfg(target_os = "macos")]
@@ -721,6 +807,12 @@ fn main() {
         .plugin(tauri_plugin_process::init())
         .manage(ReadablePaths::default())
         .manage(WritablePaths::default())
+        .manage(QuitGuard::default())
+        .setup(|_app| {
+            #[cfg(target_os = "macos")]
+            mac_quit::install(_app.handle());
+            Ok(())
+        })
         // Files dropped onto the window become readable here, in Rust —
         // this handler runs synchronously right after the drop event is
         // emitted to the webview, before its `read_pdf` call can arrive.
@@ -738,6 +830,7 @@ fn main() {
             pick_save_pdf,
             write_pdf,
             confirm_dialog,
+            set_quit_guard,
             list_system_fonts,
             read_font,
             check_update,
@@ -756,6 +849,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn terminate_only_asks_when_something_would_be_lost() {
+        assert!(mac_quit::should_terminate_now(false, true));
+        assert!(mac_quit::should_terminate_now(false, false));
+        assert!(!mac_quit::should_terminate_now(true, true));
+        // no window to ask in — nothing the user could answer, let it go
+        assert!(mac_quit::should_terminate_now(true, false));
     }
 
     #[test]
@@ -835,6 +938,25 @@ mod tests {
         let d = scratch("missing");
         let target = d.join("nope").join("x.pdf");
         assert!(write_atomic(&target, b"%PDF-1").is_err());
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// Read-only folder: the save fails with the stable code, the original
+    /// stays as it was and no temp file is left behind.
+    #[cfg(unix)]
+    #[test]
+    fn atomic_write_in_read_only_folder_keeps_original() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = scratch("readonly");
+        let target = d.join("doc.pdf");
+        std::fs::write(&target, b"%PDF-original").unwrap();
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let err = write_atomic(&target, b"%PDF-new").unwrap_err();
+        let listing: Vec<_> = std::fs::read_dir(&d).unwrap().map(|e| e.unwrap().file_name()).collect();
+        std::fs::set_permissions(&d, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(io_code(&err).starts_with("io.denied"), "{}", io_code(&err));
+        assert_eq!(std::fs::read(&target).unwrap(), b"%PDF-original");
+        assert_eq!(listing.len(), 1, "temp file left: {listing:?}");
         std::fs::remove_dir_all(&d).unwrap();
     }
 

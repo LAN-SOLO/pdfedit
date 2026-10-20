@@ -42,16 +42,23 @@ interface Props {
   onClose: () => void;
   onError: (msg: string) => void;
   onNotice: (msg: string) => void;
+  /** True while applying or exporting — counts for the quit question. */
+  onBusyChange?: (busy: boolean) => void;
 }
 
 const A4: [number, number] = [595.28, 841.89];
 let nextSlotId = 1;
 
-export default function PagesPanel({ data, onApply, onClose, onError, onNotice }: Props) {
+export default function PagesPanel({ data, onApply, onClose, onError, onNotice, onBusyChange }: Props) {
   const [sources, setSources] = useState<SourceDoc[]>([]);
   const [slots, setSlots] = useState<PageSlot[]>([]);
   const [thumbs, setThumbs] = useState<Record<string, string>>({}); // `${sourceIndex}:${pageIndex}` -> data URL
   const [busy, setBusy] = useState<string | null>(null); // status message while applying/exporting
+  const isBusy = busy !== null;
+  useEffect(() => {
+    onBusyChange?.(isBusy);
+  }, [isBusy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // load the currently-open document as source 0

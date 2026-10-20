@@ -57,7 +57,7 @@ const de: Content = {
     {
       title: 'Lesen & Suchen',
       body: [
-        '• Zoom: vergrößern, verkleinern, „Seitenbreite“ und „Ganze Seite“',
+        '• Zoom: vergrößern, verkleinern, „Breite“ (Seitenbreite) und „Seite“ (ganze Seite)',
         '• Suche: Text im Dokument finden, Treffer für Treffer',
         '• Seitenleiste: Übersicht aller Seiten, per Knopf ein- und ausblendbar',
       ],
@@ -69,7 +69,7 @@ const de: Content = {
         '• Seiten neu anordnen und leere Seiten einfügen',
         '• Ein zweites PDF anhängen (zusammenführen)',
         '• Ausgewählte Seiten als eigenes PDF exportieren',
-        'Änderungen werden erst mit „Anwenden“ ins Dokument geschrieben.',
+        'Änderungen werden erst mit „Übernehmen“ ins Dokument geschrieben.',
       ],
     },
     {
@@ -116,7 +116,7 @@ const de: Content = {
         '• Schwärzen — Bereiche markieren und wirklich aus der Datei entfernen (nicht nur überdecken)',
         '• OCR — gescannte Seiten lokal in durchsuchbaren Text verwandeln (Deutsch/Englisch)',
         '• Bereich bearbeiten — Text oder Bild in einem markierten Bereich ersetzen',
-        '• Formulare flachrechnen — Formularfelder fest ins Dokument einbrennen',
+        '• Formular flach rechnen — Formularfelder fest ins Dokument einbrennen',
       ],
     },
     {
@@ -142,10 +142,10 @@ const de: Content = {
       id: 'view',
       title: 'Anzeigen & Suchen',
       body: [
-        '• Zoom — vergrößern/verkleinern per Knopf; „Seitenbreite“ füllt die Breite, „Ganze Seite“ zeigt die komplette Seite',
+        '• Zoom — vergrößern/verkleinern per Knopf; „Breite“ füllt die Fensterbreite, „Seite“ zeigt die komplette Seite',
         '• Seitenleiste — Miniaturen aller Seiten zum schnellen Springen, ein-/ausblendbar',
         '• Seitenzahl — das Nummernfeld in der Werkzeugleiste springt direkt zu einer Seite: Nummer eintippen, Enter',
-        '• Suche — Volltextsuche im Dokument mit Vor/Zurück durch die Treffer',
+        '• Suche — Volltextsuche im Dokument mit Trefferzähler; Enter springt zum nächsten, Umschalt+Enter zum vorherigen Treffer, Esc schließt die Suche',
         '• Hell/Dunkel — der Knopf mit Sonne bzw. Mond unten rechts neben der Hilfe schaltet die Oberfläche um; die Wahl bleibt gespeichert. Die PDF-Seiten selbst bleiben unverändert',
         '• Links — Verweise innerhalb des Dokuments springen zur Zielseite. pdfedit öffnet keine Webseiten: Ein Klick auf einen externen Link (Web, E-Mail) kopiert die Adresse in die Zwischenablage, ein Hinweis zeigt sie an',
       ],
@@ -210,7 +210,7 @@ const de: Content = {
         '• Typ wählen: Textfeld, mehrzeiliges Textfeld, Kontrollkästchen oder Auswahlliste',
         '• Feldname und Vorbelegung festlegen, bei Auswahllisten die Optionen',
         'Die Felder sind echte AcroForm-Felder: sofort in pdfedit ausfüllbar und in jedem anderen PDF-Programm ebenso.',
-        'Mit „Formular flachrechnen“ lassen sich ausgefüllte Werte später dauerhaft einbrennen.',
+        'Mit „Formular flach rechnen“ lassen sich ausgefüllte Werte später dauerhaft einbrennen.',
       ],
     },
     {
@@ -243,12 +243,12 @@ const de: Content = {
       title: 'Seiten organisieren',
       body: [
         'Schnellster Weg: Seiten direkt in der Seitenleiste per Drag & Drop umsortieren. Das Seiten-Panel ist die Werkbank für alles Weitere:',
-        '• Umsortieren — Seiten in neue Reihenfolge bringen',
-        '• Leere Seite einfügen — an beliebiger Stelle',
+        '• Umsortieren — Seiten mit ↑/↓ in neue Reihenfolge bringen, mit ⟳ drehen, mit × löschen',
+        '• Leere Seite einfügen — eine A4-Seite wird hinten angefügt und lässt sich mit ↑/↓ an jede Stelle schieben',
         '• Zusammenführen — ein weiteres PDF ans Dokument anhängen',
         '• Ausgewählte Seiten exportieren — als neues, eigenes PDF speichern',
-        'Wichtig: Erst „Anwenden“ schreibt die Änderungen ins Dokument; bis dahin ist alles unverbindlich.',
-        'Formularfelder, Lesezeichen und Metadaten bleiben beim Anwenden erhalten. Gelöschte Seiten verschwinden vollständig aus der Datei — samt ihrer Formularfelder. PDFs mit Öffnen-Passwort vor dem Anhängen in einem eigenen Tab entschützen (reine Berechtigungs-Einschränkungen hängt pdfedit direkt an).',
+        'Wichtig: Erst „Übernehmen“ schreibt die Änderungen ins Dokument; bis dahin ist alles unverbindlich.',
+        'Formularfelder, Lesezeichen und Metadaten bleiben beim Übernehmen erhalten. Gelöschte Seiten verschwinden vollständig aus der Datei — samt ihrer Formularfelder. PDFs mit Öffnen-Passwort vor dem Anhängen in einem eigenen Tab entschützen (reine Berechtigungs-Einschränkungen hängt pdfedit direkt an).',
       ],
     },
     {
@@ -259,7 +259,7 @@ const de: Content = {
         '• Zeichnen — Freihand, ideal für Unterschriften per Maus oder Trackpad',
         '• Tippen — Text als Stempel, mit wählbarer Schrift (Schreibschrift, Handschrift, Serifen …), Größe und Farbe',
         '• Bild — eine Bilddatei (z. B. gescannte Unterschrift) einfügen',
-        'Nach der Wahl platzierst du den Stempel per Klick an der gewünschten Stelle. „Leeren“ setzt die Zeichenfläche zurück.',
+        'Nach der Wahl erscheint der Stempel mittig im sichtbaren Teil der aktuellen Seite; dort verschiebst du ihn per Ziehen und änderst die Größe an den Greifpunkten. „Löschen“ setzt die Zeichenfläche zurück.',
         'Hinweis: Der Stempel ist eine sichtbare Grafik im Dokument — keine kryptografische Signatur.',
       ],
     },
@@ -271,6 +271,7 @@ const de: Content = {
         'Preset wählen (stärker = kleinere Datei, sichtbarere Verluste), starten, Ergebnis prüfen: pdfedit zeigt die alte und neue Größe.',
         'Bringt ein Preset nichts (etwa bei reinen Text-PDFs), sagt pdfedit das ehrlich, statt eine kaum kleinere Datei zu feiern.',
         'Neu kodiert werden eingebettete RGB- und Graustufen-JPEGs, Transparenz bleibt erhalten. CMYK-Bilder, JPEG 2000 und Fax-Scans bleiben unverändert.',
+        'Solange das Komprimieren läuft, bleibt der Dialog offen (Schließen ist gesperrt) — sonst könnte das Ergebnis Änderungen überschreiben, die du währenddessen machst. Bei sehr großen PDFs kann das Fenster dabei kurz träge reagieren.',
       ],
     },
     {
@@ -279,7 +280,7 @@ const de: Content = {
       body: [
         'Schwärzen in pdfedit ist echtes Entfernen: Markierte Bereiche werden aus dem Dokumentinhalt gelöscht — nicht nur mit einem schwarzen Kasten überdeckt. Auch in der gespeicherten Datei bleibt vom Originalinhalt der Seite nichts zurück.',
         'Ablauf: Schwärzen aktivieren → Bereiche auf den Seiten markieren → „Anwenden“ → Sicherheitsabfrage bestätigen.',
-        'Darstellung wählbar: schwarz übermalen, verpixeln (Mosaik) oder weichzeichnen (Blur). Beides entfernt den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
+        'Darstellung wählbar: schwarz übermalen, verpixeln (Mosaik) oder weichzeichnen (Blur). Alle drei entfernen den Inhalt — verpixelter Text kann aber manchmal rekonstruiert werden, für wirklich Sensibles bleibt Schwarz die sichere Wahl.',
         'Optional werden dabei auch die Metadaten des Dokuments bereinigt: Autor, Titel, Thema, Stichwörter und Erstellungsprogramm.',
         'Achtung: Der Vorgang ist unwiderruflich. Geschwärzte Seiten werden zu Bildern (ihr Text ist danach nicht mehr auswählbar — OCR macht ihn wieder durchsuchbar). Formularfelder des Dokuments werden flachgerechnet, Anmerkungen der betroffenen Seiten entfernt, die Tagged-PDF-Struktur verworfen (sie kann Textkopien enthalten). Im Zweifel vorher eine Kopie speichern.',
       ],
@@ -301,14 +302,14 @@ const de: Content = {
         '„Ersetzen“ tauscht Inhalte in einem markierten Rechteck aus:',
         '• Text — den Bereich mit neuem Text überschreiben',
         '• Bild — den Bereich durch eine Bilddatei ersetzen',
-        'Der Bereich wird dabei geleert und neu gefüllt — bestehende Anmerkungen im Bereich gehen verloren (pdfedit warnt vorher). Wie beim Schwärzen wird die Seite dabei zum Bild: Ihr übriger Text ist danach nicht mehr auswählbar, OCR macht ihn wieder durchsuchbar.',
+        'Der Bereich wird dabei geleert und neu gefüllt. Wie beim Schwärzen wird die Seite dabei zum Bild (der Dialog weist darauf hin): Ihr übriger Text ist danach nicht mehr auswählbar, OCR macht ihn wieder durchsuchbar. Anmerkungen, Links und Formularfelder dieser Seite sind danach nur noch Teil des Bildes — nicht mehr bearbeitbar, anklickbar oder ausfüllbar.',
       ],
     },
     {
       id: 'flatten',
-      title: 'Formulare flachrechnen',
+      title: 'Formular flach rechnen',
       body: [
-        '„Flachrechnen“ brennt ausgefüllte Formularfelder fest ins Dokument: Aus interaktiven Feldern wird normaler Seiteninhalt.',
+        '„Formular flach rechnen“ brennt ausgefüllte Formularfelder fest ins Dokument: Aus interaktiven Feldern wird normaler Seiteninhalt.',
         'Sinnvoll vor dem Versenden, wenn der Empfänger die Felder nicht mehr ändern soll — oder wenn ein Viewer Probleme mit Formularen hat.',
       ],
     },
@@ -322,7 +323,7 @@ const de: Content = {
         'Hält ein Virenscanner oder OneDrive die Datei unter Windows gerade fest, versucht pdfedit es rund zwei Sekunden lang erneut. Ist sie in einem anderen Programm geöffnet (z. B. Acrobat), meldet pdfedit das klar — das Original bleibt unverändert.',
         'Schlägt das Speichern fehl (z. B. weil die Datei gesperrt ist), bleibt der Tab als ungespeichert markiert und Schließen fragt weiterhin nach. Solange eine Datei geschrieben wird, ist „Speichern“ gesperrt; bearbeitest du währenddessen weiter, bleibt der Tab ungespeichert.',
         'Tippst du im Speichern-Dialog einen Namen ohne „.pdf“, hängt pdfedit die Endung an und fragt nach, falls es diese Datei schon gibt.',
-        'Läuft beim Beenden (auch mit ⌘Q unter macOS) noch ein Speichervorgang oder eine längere Aufgabe (OCR, Komprimieren, Schwärzen …), fragt pdfedit vorher, statt sie abzubrechen.',
+        'Läuft beim Beenden noch ein Speichervorgang oder eine längere Aufgabe (OCR, Komprimieren, Schwärzen, Seiten übernehmen oder exportieren …), fragt pdfedit vorher, statt sie abzubrechen. Unter macOS gilt das auch für ⌘Q, „Beenden“ im Dock, Abmelden und Ausschalten: Gibt es etwas zu verlieren, unterbricht pdfedit das und stellt die Fragen — Abmelden/Ausschalten dann bitte neu starten. Ohne ungespeicherte Änderungen beendet sich pdfedit sofort.',
       ],
     },
     {
@@ -370,7 +371,7 @@ const en: Content = {
     {
       title: 'Reading & searching',
       body: [
-        '• Zoom: in, out, “fit width” and “fit page”',
+        '• Zoom: in, out, “Fit width” and “Fit page”',
         '• Search: find text in the document, hit by hit',
         '• Sidebar: overview of all pages, toggleable',
       ],
@@ -455,10 +456,10 @@ const en: Content = {
       id: 'view',
       title: 'Viewing & search',
       body: [
-        '• Zoom — in/out via buttons; “fit width” fills the width, “fit page” shows the whole page',
+        '• Zoom — in/out via buttons; “Fit width” fills the window width, “Fit page” shows the whole page',
         '• Sidebar — thumbnails of all pages for quick jumps, toggleable',
         '• Page number — the number field in the toolbar jumps straight to a page: type the number, press Enter',
-        '• Search — full-text search with next/previous through the hits',
+        '• Search — full-text search in the document with a match counter; Enter jumps to the next match, Shift+Enter to the previous one, Esc closes the search',
         '• Light/dark — the sun or moon button at the bottom right next to Help switches the interface; the choice is remembered. The PDF pages themselves stay unchanged',
         '• Links — links within the document jump to their target page. pdfedit doesn\u2019t open web pages: clicking an external link (web, e-mail) copies the address to the clipboard and a notice shows it',
       ],
@@ -556,8 +557,8 @@ const en: Content = {
       title: 'Organizing pages',
       body: [
         'Fastest route: reorder pages directly in the sidebar via drag & drop. The pages panel is the workbench for everything else:',
-        '• Reorder — bring pages into a new order',
-        '• Insert blank page — anywhere',
+        '• Reorder — move pages with ↑/↓, rotate with ⟳, delete with ×',
+        '• Insert blank page — an A4 page is added at the end and can be moved anywhere with ↑/↓',
         '• Merge — append another PDF to the document',
         '• Export selected pages — save them as a new, separate PDF',
         'Important: only “Apply” writes the changes into the document; until then everything is tentative.',
@@ -572,7 +573,7 @@ const en: Content = {
         '• Draw — freehand, ideal for signatures via mouse or trackpad',
         '• Type — text as a stamp, with selectable font (script, handwriting, serif …), size and color',
         '• Image — insert an image file (e.g. a scanned signature)',
-        'After choosing, click to place the stamp where you want it. “Clear” resets the drawing area.',
+        'After choosing, the stamp appears centered in the visible part of the current page; drag it into place and resize it with its handles. “Clear” resets the drawing area.',
         'Note: the stamp is a visible graphic in the document — not a cryptographic signature.',
       ],
     },
@@ -584,6 +585,7 @@ const en: Content = {
         'Pick a preset (stronger = smaller file, more visible loss), run it, check the result: pdfedit shows old and new size.',
         'If a preset achieves nothing (e.g. text-only PDFs), pdfedit says so honestly instead of celebrating a barely smaller file.',
         'Re-encoded are embedded RGB and grayscale JPEGs, transparency is kept. CMYK images, JPEG 2000 and fax scans stay untouched.',
+        'While compressing runs, the dialog stays open (closing is disabled) — otherwise the result could overwrite edits made meanwhile. With very large PDFs the window may respond sluggishly for a moment.',
       ],
     },
     {
@@ -592,7 +594,7 @@ const en: Content = {
       body: [
         'Redaction in pdfedit is real removal: marked areas are deleted from the document content — not just covered with a black box. Nothing of the page’s original content is left in the saved file either.',
         'Flow: enable redaction → mark areas on the pages → “Apply” → confirm the safety prompt.',
-        'Choose the style: solid black, pixelate (mosaic) or blur (soften). Both remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
+        'Choose the style: solid black, pixelate (mosaic) or blur (soften). All three remove the content — but pixelated text can sometimes be reconstructed; for truly sensitive content black remains the safe choice.',
         'Optionally the document’s metadata is cleaned as well: author, title, subject, keywords and producing application.',
         'Caution: this cannot be undone. Redacted pages become images (their text is no longer selectable — OCR makes it searchable again). The document’s form fields are flattened, annotations on affected pages removed and the tagged-PDF structure discarded (it can hold text copies). When in doubt, save a copy first.',
       ],
@@ -614,14 +616,14 @@ const en: Content = {
         '“Replace” swaps content inside a marked rectangle:',
         '• Text — overwrite the area with new text',
         '• Image — replace the area with an image file',
-        'The area is cleared and refilled — existing annotations inside it are lost (pdfedit warns you first). As with redaction, the page becomes an image: its remaining text is no longer selectable, OCR makes it searchable again.',
+        'The area is cleared and refilled. As with redaction, the page becomes an image (the dialog points this out): its remaining text is no longer selectable, OCR makes it searchable again. Annotations, links and form fields on that page are then only part of the image — no longer editable, clickable or fillable.',
       ],
     },
     {
       id: 'flatten',
       title: 'Flattening forms',
       body: [
-        '“Flatten” bakes filled form fields into the document: interactive fields become ordinary page content.',
+        '“Flatten form” bakes filled form fields into the document: interactive fields become ordinary page content.',
         'Useful before sending, when the recipient shouldn’t change the fields anymore — or when a viewer struggles with forms.',
       ],
     },
@@ -635,7 +637,7 @@ const en: Content = {
         'If a virus scanner or OneDrive briefly holds the file on Windows, pdfedit retries for about two seconds. If it is open in another program (e.g. Acrobat), pdfedit says so clearly — the original stays untouched.',
         'If saving fails (e.g. because the file is locked), the tab stays marked as unsaved and closing still asks. While a file is being written, “Save” is disabled; if you keep editing meanwhile, the tab stays unsaved.',
         'If you type a name without “.pdf” in the save dialog, pdfedit appends the extension and asks first if that file already exists.',
-        'If a save or a longer task (OCR, compressing, redacting …) is still running when you quit (⌘Q on macOS included), pdfedit asks first instead of cutting it off.',
+        'If a save or a longer task (OCR, compressing, redacting, applying or exporting pages …) is still running when you quit, pdfedit asks first instead of cutting it off. On macOS this also covers ⌘Q, “Quit” in the Dock, logging out and shutting down: if something would be lost, pdfedit interrupts that and asks — then start the logout/shutdown again. Without unsaved changes pdfedit quits right away.',
       ],
     },
     {

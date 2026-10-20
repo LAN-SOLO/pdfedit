@@ -103,6 +103,7 @@ const mockScript = (lang) => `
           if (cfg.writeError) throw cfg.writeError;
           cfg.written = args; return null;
         case 'list_system_fonts': return [];
+        case 'set_quit_guard': cfg.quitGuard = args.active; return null;
         case 'install_update': throw 'update.install: signature mismatch';
       }
       throw new Error('unmocked command ' + cmd);
@@ -239,11 +240,27 @@ async function run(lang, theme) {
     await __h.until(() => __h.toast().includes(t.errors['io.locked']), 6000); await __h.sleep(300); __mock.writeError = null;
     return { toast: __h.toast(), dirty: !!document.querySelector('.dirtydot') }`);
   check(`${tag} failed save keeps tab dirty`, sv1.dirty && sv1.toast.includes(lang === 'de' ? 'anderen Programm' : 'another program'), JSON.stringify(sv1));
+  check(`${tag} quit guard on while unsaved (Dock quit asks)`, (await ev(`return __mock.quitGuard`)) === true);
   const sv2 = await ev(`${L} await __h.until(() => !document.querySelector('.toast'), 6000); __mock.calls = []; __mock.writeDelay = 1500; __h.click(t.save); await __h.until(() => __mock.calls.some(c => c.cmd === 'write_pdf'), 6000); await __h.sleep(150);
     const midDisabled = !!document.querySelector('button.primary.iconbtn')?.disabled; document.querySelector('button.primary.iconbtn')?.click();
     await __h.until(() => __h.toast() === t.saved, 8000); __mock.writeDelay = 0; await __h.sleep(500);
     return { midDisabled, writes: __mock.calls.filter(c => c.cmd === 'write_pdf').length, dirty: !!document.querySelector('.dirtydot') }`);
   check(`${tag} slow save: no second write, tab clean afterwards`, sv2.midDisabled && sv2.writes === 1 && !sv2.dirty, JSON.stringify(sv2));
+  check(`${tag} quit guard off once clean (Dock quit quits at once)`, (await ev(`return __mock.quitGuard`)) === false);
+
+  // 7c. disk full / read-only folder on save: translated, tab stays unsaved;
+  // a cancelled open dialog changes nothing
+  for (const code of ['io.full', 'io.denied']) {
+    const r = await ev(`${L} await __h.until(() => !document.querySelector('.toast'), 6000);
+      __mock.writeError = '${code}: os text'; __h.click(t.save);
+      await __h.until(() => __h.toast().includes(t.errors['${code}']), 6000); await __h.sleep(300); __mock.writeError = null;
+      return { toast: __h.toast(), dirty: !!document.querySelector('.dirtydot'), guard: __mock.quitGuard, raw: __h.toast().includes('os text') }`);
+    check(`${tag} save ${code}: translated, tab unsaved, quit guard on`, r.dirty && r.guard === true && !r.raw, JSON.stringify(r));
+  }
+  const pc = await ev(`${L} await __h.until(() => !document.querySelector('.toast'), 6000); const tabs0 = document.querySelectorAll('.tab').length; __mock.pickPath = null; __mock.calls = [];
+    __h.click(t.openPdf); await __h.sleep(600); const r = { tabs: document.querySelectorAll('.tab').length - tabs0, toast: __h.toast(), read: __mock.calls.some(c => c.cmd === 'read_pdf') };
+    __mock.pickPath = '/Users/batman/Dokumente/Bericht März 2026.pdf'; return r;`);
+  check(`${tag} cancelled open dialog: no tab, no error`, pc.tabs === 0 && !pc.toast && !pc.read, JSON.stringify(pc));
 
   // 8. pages dialog: translated buttons, layout, export notice
   await ev(`${L} __h.click(t.pagesButton); await __h.until(() => document.querySelector('.pagesmodal .pagecard-actions'), 8000); await __h.sleep(600);`);
@@ -257,10 +274,22 @@ async function run(lang, theme) {
     const eb = [...document.querySelectorAll('.pagesmodal button')].find(b => b.textContent.includes(t.pagesExportSelected?.(1) ?? '§§') || /xport/.test(b.textContent));
     if (!eb) return 'no export button: ' + [...document.querySelectorAll('.pagesmodal button')].map(b => b.textContent).join('|');
     if (eb.disabled) return 'export disabled';
-    eb.click(); await __h.until(() => __mock.written, 8000); await __h.until(() => __h.toast().includes('Auszug.pdf'), 4000);
-    return { toast: __h.toast(), exp: t.pagesExported('Auszug.pdf'), args: Object.keys(__mock.calls.find(c => c.cmd === 'pick_save_pdf')?.args ?? {}) }`);
+    __mock.writeDelay = 1500; __mock.written = null; __mock.confirmAnswer = false;
+    eb.click(); await __h.until(() => __mock.calls.some(c => c.cmd === 'write_pdf'), 8000); await __h.sleep(100);
+    const guardMid = __mock.quitGuard; const pickArgs = Object.keys(__mock.calls.find(c => c.cmd === 'pick_save_pdf')?.args ?? {}); __mock.calls = [];
+    __mock.emit('tauri://close-requested', null); await __h.sleep(400);
+    const askedMid = __mock.calls.filter(c => c.cmd === 'confirm_dialog').map(c => c.args.message);
+    await __h.until(() => __mock.written, 8000); await __h.until(() => __h.toast().includes('Auszug.pdf'), 4000); __mock.writeDelay = 0; await __h.sleep(300);
+    return { toast: __h.toast(), exp: t.pagesExported('Auszug.pdf'), args: pickArgs,
+      guardMid, guardAfter: __mock.quitGuard, dirtyAfter: !!document.querySelector('.dirtydot'), askedMid, busyMsg: t.busyQuitConfirm, destroyed: __mock.destroyed }`);
   check(`${tag} export notice + replace labels sent`, typeof exp === 'object' && exp.toast === exp.exp && exp.args.includes('replaceMsg'), JSON.stringify(exp));
+  check(`${tag} export counts as busy: quit asks "still working", Cancel keeps app`, typeof exp === 'object' && exp.guardMid === true && exp.askedMid[0] === exp.busyMsg && !exp.destroyed, JSON.stringify(exp));
+  // the tab is still unsaved from 7c → the guard stays on for that reason only
+  check(`${tag} quit guard after export = unsaved state only`, typeof exp === 'object' && exp.dirtyAfter === true && exp.guardAfter === true, JSON.stringify(exp));
   await ev(`const x = [...document.querySelectorAll('.pagesmodal .mhead button')][0]; x?.click(); await __h.sleep(300);`);
+  const g2 = await ev(`${L} await __h.until(() => !document.querySelector('.toast'), 6000); __h.click(t.save); await __h.until(() => __h.toast() === t.saved, 8000); await __h.sleep(400);
+    return { guard: __mock.quitGuard, dirty: !!document.querySelector('.dirtydot') }`);
+  check(`${tag} saved after export: quit guard off (busy released)`, g2.guard === false && !g2.dirty, JSON.stringify(g2));
 
   // 9. help panel
   await ev(`document.querySelector('.hlp-fab:not(.theme-fab)')?.click(); await __h.sleep(500);`);

@@ -37,6 +37,7 @@ export const api = {
   writePdf: (path: string, dataB64: string) => invoke<void>('write_pdf', { path, dataB64 }),
   confirmDialog: (message: string, okLabel: string, cancelLabel: string) =>
     invoke<boolean>('confirm_dialog', { message, okLabel, cancelLabel }),
+  setQuitGuard: (active: boolean) => invoke<void>('set_quit_guard', { active }),
   listSystemFonts: () => invoke<SystemFont[]>('list_system_fonts'),
   readFont: (path: string) => invoke<ArrayBuffer>('read_font', { path }),
   checkUpdate: () => invoke<UpdateInfo | null>('check_update'),
