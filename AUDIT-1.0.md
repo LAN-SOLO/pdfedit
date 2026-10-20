@@ -552,6 +552,8 @@ durchspielen, Reste aus Runde 2 schließen.
   (Ausnahmen: Acrobat-Begriffe, Dock-Menü „Beenden“/„Quit“).
 - Hilfe „Seiten“: Leerseite „an beliebiger Stelle“ — sie wird als A4 hinten
   angefügt und mit ↑/↓ verschoben; Drehen/Löschen ergänzt.
+- Hilfe „Wasserzeichen“: „in gewählte oder alle Seiten“ — der Dialog kennt
+  nur „aktuelle Seite“ oder „alle Seiten“.
 - Schwärzen: „Beides entfernt den Inhalt“ bei drei Stilen → „Alle drei“;
   Startseiten-Text nennt jetzt auch „weichgezeichnet“.
 - README: „mit pdfedit inked … Text mit Umbruch, Bilder, Vektorobjekte“ —

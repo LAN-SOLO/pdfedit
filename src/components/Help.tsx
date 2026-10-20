@@ -192,7 +192,7 @@ const de: Content = {
       id: 'watermark',
       title: 'Unsichtbares Wasserzeichen',
       body: [
-        'Der Wasserzeichen-Dialog bettet ein PNG (Transparenz bleibt erhalten) unsichtbar in gewählte oder alle Seiten ein und vermerkt es pro Seite.',
+        'Der Wasserzeichen-Dialog bettet ein PNG (Transparenz bleibt erhalten) unsichtbar in die aktuelle Seite oder in alle Seiten ein und vermerkt es pro Seite.',
         'Der Prüfen-Tab liest die Markierungen wieder aus:',
         '• Seiten ohne Wasserzeichen → möglicherweise ausgetauscht',
         '• Position stimmt nicht mehr → Seiten wurden umsortiert',
@@ -506,7 +506,7 @@ const en: Content = {
       id: 'watermark',
       title: 'Invisible watermark',
       body: [
-        'The watermark dialog embeds a PNG (transparency preserved) invisibly into selected or all pages and records it per page.',
+        'The watermark dialog embeds a PNG (transparency preserved) invisibly into the current page or all pages and records it per page.',
         'The verify tab reads the marks back:',
         '• Pages without the watermark → possibly swapped in',
         '• Recorded position no longer matches → pages were reordered',
